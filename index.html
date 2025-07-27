@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mindful Play - A Game Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Tech Neutrals -->
+    <!-- Application Structure Plan: A multi-screen single-page application (SPA) navigated via JavaScript. The flow is: Welcome -> Game Hub -> Mini-Game -> Game Hub -> ... -> Results. This structure isolates each game, allowing for focused interaction and data capture per activity. It's designed to feel like a simple, friendly app, hiding the complex data logging happening in the background. The user is always guided to the next logical step. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Capturing behavioral proxies for anxiety/depression. Goal: Collect Data. Viz: Interactive Canvas-based games with levels and enhanced mechanics (collectibles, moving obstacles, visual maps). Interaction: Mouse movement, clicks, timing. Justification: More engaging game mechanics lead to more natural player behavior, providing richer and more nuanced data for the ML model.
+        - Report Info: Logged user interaction data. Goal: Demonstrate Data Capture. Viz: Formatted JSON in a <pre> tag. Interaction: Static display. Justification: Showing the raw output is the most direct way to demonstrate the data that will be fed into the machine learning model.
+        - Gemini Feature 1: Dynamic Story Generation. Goal: Enhance engagement. Viz: Text + Buttons. Interaction: User choice drives API call. Justification: Creates a unique, replayable experience, logging user choice archetypes.
+        - Gemini Feature 2: Personalized Feedback. Goal: Provide user value. Viz: Text block. Interaction: Button click triggers analysis and API call. Justification: Offers a positive, reflective summary of the user's session, demonstrating a constructive use of the collected data.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* A lighter, softer slate */
+        }
+        .screen {
+            display: none;
+            animation: fadeIn 0.5s ease-out;
+        }
+        .screen.active {
+            display: block;
+        }
+        .game-card {
+            transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+        .game-card.completed .status-badge {
+             background-color: #10b981; /* emerald-500 */
+             color: white;
+        }
+        .game-card.completed {
+            opacity: 0.8;
+        }
+        .game-card:not(.completed):hover {
+            transform: translateY(-8px);
+            box-shadow: 0 10px 20px -5px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            border-color: #0ea5e9; /* sky-500 */
+        }
+        .game-canvas {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background-color: #94a3b8 !important; 
+        }
+        .btn {
+            transition: background-color 0.3s, transform 0.2s, box-shadow 0.3s;
+        }
+        .btn:not(.disabled):hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        .completion-overlay {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            text-align: center;
+            animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .pulse {
+            animation: pulse 1s infinite;
+        }
+        .memory-card {
+            perspective: 1000px;
+        }
+        .memory-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .memory-card.flipped .memory-card-inner {
+            transform: rotateY(180deg);
+        }
+        .memory-card-front, .memory-card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.5rem;
+        }
+        .memory-card-front {
+            background-color: #38bdf8; /* sky-400 */
+        }
+        .memory-card-back {
+            background-color: #f1f5f9; /* slate-100 */
+            transform: rotateY(180deg);
+            font-size: 2rem;
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+
+    <div id="app" class="max-w-5xl mx-auto p-4 md:p-8">
+        
+        <div id="loading-overlay" class="fixed inset-0 bg-slate-100/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <p class="text-lg font-semibold text-slate-700">Connecting...</p>
+        </div>
+
+        <!-- Welcome Screen -->
+        <div id="screen-welcome" class="screen active text-center py-16">
+            <h1 class="text-4xl md:text-6xl font-bold text-slate-800 tracking-tight">Mindful Play</h1>
+            <p class="mt-4 text-lg text-slate-600">A short suite of games to challenge your focus and decision-making.</p>
+            <button id="start-btn" class="btn mt-10 bg-sky-600 text-white font-bold py-4 px-10 rounded-full shadow-lg hover:bg-sky-700 text-lg">Begin Your Session</button>
+        </div>
+
+        <!-- Game Hub Screen -->
+        <div id="screen-hub" class="screen">
+            <div id="offline-banner" class="hidden bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 mb-6 rounded-md" role="alert">
+                <p class="font-bold">Offline Mode</p>
+                <p>Could not connect to the server. Gameplay will be saved locally to your browser.</p>
+            </div>
+            <div class="flex justify-between items-center mb-8">
+                 <h2 class="text-3xl font-bold text-slate-800">Game Hub</h2>
+                 <div class="text-right">
+                    <span class="text-xs text-slate-500">User ID</span>
+                    <p id="user-id-display" class="font-mono text-xs text-slate-700"></p>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div id="card-gem-trail" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-slate-800">Gem Trail</h3>
+                    <p class="mt-2 text-sm text-slate-500">Navigate the trail and collect gems.</p>
+                    <span id="status-gem-trail" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                </div>
+                <div id="card-journey-planner" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-slate-800">Journey Planner</h3>
+                    <p class="mt-2 text-sm text-slate-500">Choose the wisest path to the goal.</p>
+                    <span id="status-journey-planner" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                </div>
+                <div id="card-dream-weaver" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-slate-800">✨ Dream Weaver</h3>
+                    <p class="mt-2 text-sm text-slate-500">An AI-powered story where you decide what happens next.</p>
+                    <span id="status-dream-weaver" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                </div>
+                <div id="card-rhythm-tap" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-slate-800">Rhythm Tap</h3>
+                    <p class="mt-2 text-sm text-slate-500">Tap in time with the pulsing circle.</p>
+                    <span id="status-rhythm-tap" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                </div>
+                 <div id="card-memory-match" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-slate-800">Memory Match</h3>
+                    <p class="mt-2 text-sm text-slate-500">Find all the matching pairs.</p>
+                    <span id="status-memory-match" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                </div>
+                 <div id="card-quick-sort" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-slate-800">Quick Sort</h3>
+                    <p class="mt-2 text-sm text-slate-500">Sort the shapes into the correct bins.</p>
+                    <span id="status-quick-sort" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                </div>
+            </div>
+            <div class="text-center mt-12">
+                <button id="finish-btn" class="btn bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-emerald-700 disabled">Save & Finish Session</button>
+            </div>
+        </div>
+
+        <!-- Game Screens -->
+        <div id="screen-gem-trail" class="screen"></div>
+        <div id="screen-journey-planner" class="screen"></div>
+        <div id="screen-dream-weaver" class="screen"></div>
+        <div id="screen-rhythm-tap" class="screen"></div>
+        <div id="screen-memory-match" class="screen"></div>
+        <div id="screen-quick-sort" class="screen"></div>
+        
+        <!-- Results Screen -->
+        <div id="screen-results" class="screen">
+            <h2 id="results-title" class="text-3xl font-bold text-slate-800 text-center">Session Complete!</h2>
+            <div class="bg-white p-6 mt-8 rounded-lg shadow-md text-center">
+                <h3 class="text-xl font-semibold text-slate-800">Thank You!</h3>
+                <p id="results-subtitle" class="mt-2 text-slate-600">Your session data has been processed.</p>
+                <div class="flex justify-center gap-4">
+                    <button id="get-feedback-btn" class="btn mt-6 bg-amber-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-amber-600">✨ Get My Insight</button>
+                    <button id="download-csv-btn" class="btn mt-6 bg-blue-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-600">Download CSV</button>
+                </div>
+                <div id="feedback-container" class="mt-4 p-4 bg-amber-50 rounded-lg text-slate-700 text-left hidden"></div>
+            </div>
+            <div class="bg-slate-800 text-white p-6 mt-6 rounded-lg shadow-md">
+                <h3 class="text-lg font-semibold text-slate-200">Developer View: Captured Behavioral Data</h3>
+                <p class="text-xs text-slate-400 mb-4">This is the raw data that was saved.</p>
+                <pre id="results-data" class="text-xs whitespace-pre-wrap overflow-x-auto"></pre>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-analytics.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAqEGAdK8DuNLND-OmS5phaMn9chTqLdPA",
+            authDomain: "ml-capstone-88d2a.firebaseapp.com",
+            projectId: "ml-capstone-88d2a",
+            storageBucket: "ml-capstone-88d2a.firebasestorage.app",
+            messagingSenderId: "880963459073",
+            appId: "1:880963459073:web:2ba11c43287ce498890800",
+            measurementId: "G-PPQSY6VJ03"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let userId = null;
+        let isOnline = false;
+        const appId = 'mindful-play-capstone';
+
+        function handleOfflineMode() {
+            isOnline = false;
+            userId = `local-${crypto.randomUUID()}`;
+            document.getElementById('user-id-display').textContent = 'Offline Mode';
+            document.getElementById('loading-overlay').style.display = 'none';
+            document.getElementById('offline-banner').classList.remove('hidden');
+            document.getElementById('finish-btn').textContent = 'Finish & Save Locally';
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                isOnline = true;
+                userId = user.uid;
+                document.getElementById('user-id-display').textContent = userId.substring(0, 12) + '...';
+                document.getElementById('loading-overlay').style.display = 'none';
+            }
+        });
+
+        async function initializeAuth() {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Anonymous sign-in failed:", error);
+                let errorMessage = '';
+                switch (error.code) {
+                    case 'auth/configuration-not-found':
+                        errorMessage = `
+                            <div class="text-center p-4 bg-white rounded-lg shadow-xl">
+                                <p class="font-bold text-red-600 text-lg">Firebase Configuration Error</p>
+                                <p class="mt-2 text-slate-600">Anonymous sign-in is not enabled for this project.</p>
+                                <p class="mt-4 text-sm text-slate-500 text-left">
+                                    <strong>Action Required:</strong><br>
+                                    1. Go to your Firebase Console.<br>
+                                    2. Navigate to Authentication -> Sign-in method.<br>
+                                    3. Enable the "Anonymous" provider and save.<br>
+                                    4. Refresh this page.
+                                </p>
+                            </div>`;
+                        break;
+                    case 'auth/admin-restricted-operation':
+                        errorMessage = `
+                            <div class="text-center p-4 bg-white rounded-lg shadow-xl max-w-lg">
+                                <p class="font-bold text-red-600 text-lg">Firebase Permission Error</p>
+                                <p class="mt-2 text-slate-600">This operation is restricted and not allowed by your current Firebase settings.</p>
+                                <p class="mt-4 text-sm text-slate-500 text-left">
+                                    <strong>This can happen for a few reasons:</strong><br>
+                                    1. <strong>API Key Restrictions:</strong> Your API key might be restricted. Go to Google Cloud Console -> APIs & Services -> Credentials, find your key, and ensure the "Identity Toolkit API" is allowed.<br>
+                                    2. <strong>Incorrect Config:</strong> Double-check that the \`firebaseConfig\` object in the code is 100% correct.<br>
+                                </p>
+                                <button id="offline-mode-btn" class="btn mt-4 bg-amber-500 text-white font-bold py-2 px-4 rounded-lg">Continue in Offline Mode</button>
+                            </div>`;
+                        break;
+                    default:
+                        errorMessage = `
+                            <div class="text-center p-4 bg-white rounded-lg shadow-xl max-w-lg">
+                                <p class="font-bold text-red-600 text-lg">Firebase Connection Error</p>
+                                <p class="mt-2 text-slate-600">Could not connect to the authentication server. (Code: ${error.code})</p>
+                                <p class="mt-4 text-sm text-slate-500 text-left">
+                                    <strong>This is a common issue. Please check the following:</strong><br>
+                                    1. Go to your Firebase Console -> Authentication -> Settings -> Authorized domains.<br>
+                                    2. Click "Add domain" and add the domain you see in your browser's address bar (e.g., <strong>localhost</strong>).<br>
+                                    3. Ensure Anonymous sign-in is enabled.<br>
+                                    4. Refresh this page after updating settings.
+                                </p>
+                                <button id="offline-mode-btn" class="btn mt-4 bg-amber-500 text-white font-bold py-2 px-4 rounded-lg">Continue in Offline Mode</button>
+                            </div>`;
+                        break;
+                }
+                document.getElementById('loading-overlay').innerHTML = errorMessage;
+                const offlineBtn = document.getElementById('offline-mode-btn');
+                if (offlineBtn) {
+                    offlineBtn.addEventListener('click', handleOfflineMode);
+                }
+            }
+        }
+
+        initializeAuth();
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const screens = document.querySelectorAll('.screen');
+            const appData = {
+                sessionId: new Date().toISOString(),
+                gemTrail: [],
+                journeyPlanner: { decisions: [], finalEnergy: 0 },
+                dreamWeaver: { choices: [] },
+                rhythmTap: [],
+                memoryMatch: [],
+                quickSort: []
+            };
+            const gamesPlayed = {
+                gemTrail: false,
+                journeyPlanner: false,
+                dreamWeaver: false,
+                rhythmTap: false,
+                memoryMatch: false,
+                quickSort: false
+            };
+
+            function navigateTo(screenId) {
+                screens.forEach(s => s.classList.remove('active'));
+                document.getElementById(screenId).classList.add('active');
+            }
+
+            function checkCompletion() {
+                if (Object.values(gamesPlayed).every(Boolean)) {
+                    document.getElementById('finish-btn').classList.remove('disabled');
+                }
+            }
+            
+            function createGameScreen(gameId, title, content) {
+                const screen = document.getElementById(`screen-${gameId}`);
+                screen.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <h2 class="text-2xl font-bold text-slate-800">${title}</h2>
+                        <span id="${gameId}-level-indicator" class="font-mono text-lg text-slate-500"></span>
+                    </div>
+                    ${content}
+                    <div class="text-center mt-4">
+                         <button class="btn back-to-hub-btn bg-slate-500 text-white font-bold py-2 px-6 rounded-lg shadow-md hover:bg-slate-600">Back to Hub</button>
+                    </div>`;
+            }
+
+            document.getElementById('start-btn').addEventListener('click', () => navigateTo('screen-hub'));
+            
+            document.getElementById('finish-btn').addEventListener('click', async () => {
+                const finishBtn = document.getElementById('finish-btn');
+                if (finishBtn.classList.contains('disabled')) return;
+                
+                if (!isOnline) {
+                    try {
+                        let localSessions = JSON.parse(localStorage.getItem('mindful-play-sessions')) || [];
+                        localSessions.push(appData);
+                        localStorage.setItem('mindful-play-sessions', JSON.stringify(localSessions));
+                        
+                        document.getElementById('results-title').textContent = 'Session Saved Locally!';
+                        document.getElementById('results-subtitle').textContent = 'Your session data has been saved to this browser.';
+                        document.getElementById('results-data').textContent = JSON.stringify(appData, null, 2);
+                        navigateTo('screen-results');
+                    } catch (error) {
+                        console.error("Error saving to localStorage:", error);
+                        alert("Could not save session data locally. Your browser might be in private mode or storage is full.");
+                    }
+                    return;
+                }
+
+                finishBtn.textContent = 'Saving...';
+                finishBtn.classList.add('disabled');
+
+                try {
+                    const sessionData = { ...appData, createdAt: serverTimestamp(), userId: userId };
+                    const docRef = doc(db, "artifacts", appId, "public", "data", "gameSessions", appData.sessionId);
+                    await setDoc(docRef, sessionData);
+
+                    document.getElementById('results-title').textContent = 'Session Saved to Cloud!';
+                    document.getElementById('results-subtitle').textContent = 'Your session data has been saved successfully.';
+                    document.getElementById('results-data').textContent = JSON.stringify(sessionData, null, 2);
+                    navigateTo('screen-results');
+                } catch (error) {
+                    console.error("Error writing document: ", error);
+                    alert("Could not save session data. Please check console for errors.");
+                    finishBtn.textContent = 'Save & Finish Session';
+                    finishBtn.classList.remove('disabled');
+                }
+            });
+            
+            document.addEventListener('click', e => {
+                if (e.target.classList.contains('back-to-hub-btn')) {
+                    navigateTo('screen-hub');
+                }
+            });
+
+            document.getElementById('card-gem-trail').addEventListener('click', () => { if (!gamesPlayed.gemTrail) { navigateTo('screen-gem-trail'); initGemTrail(); } });
+            document.getElementById('card-journey-planner').addEventListener('click', () => { if (!gamesPlayed.journeyPlanner) { navigateTo('screen-journey-planner'); initJourneyPlanner(); } });
+            document.getElementById('card-dream-weaver').addEventListener('click', () => { if (!gamesPlayed.dreamWeaver) { navigateTo('screen-dream-weaver'); initDreamWeaver(); } });
+            document.getElementById('card-rhythm-tap').addEventListener('click', () => { if (!gamesPlayed.rhythmTap) { navigateTo('screen-rhythm-tap'); initRhythmTap(); } });
+            document.getElementById('card-memory-match').addEventListener('click', () => { if (!gamesPlayed.memoryMatch) { navigateTo('screen-memory-match'); initMemoryMatch(); } });
+            document.getElementById('card-quick-sort').addEventListener('click', () => { if (!gamesPlayed.quickSort) { navigateTo('screen-quick-sort'); initQuickSort(); } });
+
+            // --- Gemini API Call ---
+            async function callGemini(prompt, isJson = false) {
+                if (!isOnline) {
+                    return null; // Don't call API in offline mode
+                }
+                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                if (isJson) {
+                    payload.generationConfig = {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "storyText": { "type": "STRING" },
+                                "choices": {
+                                    "type": "ARRAY",
+                                    "items": { 
+                                        "type": "OBJECT",
+                                        "properties": {
+                                            "text": { "type": "STRING" },
+                                            "trait": { "type": "STRING", "enum": ["adventurous", "cautious", "social", "solitary"] }
+                                        },
+                                        "required": ["text", "trait"]
+                                    }
+                                }
+                            },
+                            required: ["storyText", "choices"]
+                        }
+                    };
+                }
+                const apiKey = ""; 
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) {
+                        throw new Error(`API call failed with status: ${response.status}`);
+                    }
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                        return result.candidates[0].content.parts[0].text;
+                    } else {
+                        throw new Error("Invalid response structure from API.");
+                    }
+                } catch (error) {
+                    console.error("Gemini API call error:", error);
+                    return null;
+                }
+            }
+
+            // --- Game 1: Gem Trail ---
+            function initGemTrail() {
+                createGameScreen('gem-trail', 'Gem Trail', `
+                    <p id="gt-instructions" class="text-center text-slate-600 mb-2">Move to the start circle (S) to begin.</p>
+                    <div class="flex justify-center items-center gap-8 font-mono text-lg mb-2">
+                        <span id="gt-timer">Time: 0.00s</span>
+                        <span id="gt-score">Score: 0</span>
+                    </div>
+                    <div class="relative">
+                        <canvas id="gt-canvas" class="game-canvas mx-auto" width="600" height="400"></canvas>
+                        <div id="gt-completion-overlay" class="completion-overlay rounded-lg">
+                            <h3 id="gt-completion-title" class="text-2xl font-bold text-slate-800">Level Complete!</h3>
+                            <p id="gt-completion-stats" class="mt-2 text-slate-600"></p>
+                            <button id="gt-next-level-btn" class="btn mt-6 bg-sky-600 text-white font-bold py-2 px-6 rounded-lg shadow-md">Next Level</button>
+                        </div>
+                    </div>`);
+                
+                const gtCanvas = document.getElementById('gt-canvas');
+                const gtCtx = gtCanvas.getContext('2d');
+                const gtCompletionOverlay = document.getElementById('gt-completion-overlay');
+                let gtGameActive = false, gtStartTime, gtTimerInterval, gtAnimationInterval, gtHits = 0, gtScore = 0, gtCurrentLevel = 0;
+                let gems = [], obstacles = [];
+                let mousePos = { x: 0, y: 0 };
+                const maxLevels = 10;
+
+                const levels = [
+                    { walls: [ { x: 0, y: 50, w: 400, h: 10 }, { x: 200, y: 250, w: 400, h: 10 } ], gems: [{x: 300, y: 150}], obstacles: [] },
+                    { walls: [ { x: 100, y: 0, w: 10, h: 200 }, { x: 300, y: 100, w: 10, h: 300 } ], gems: [{x: 200, y: 80}, {x: 400, y: 350}], obstacles: [{x: 400, y: 100, w: 10, h: 80, vy: 1}] },
+                    { walls: [ { x: 0, y: 80, w: 150, h: 10 }, { x: 150, y: 80, w: 10, h: 150 }, { x: 300, y: 150, w: 200, h: 10 } ], gems: [{x: 80, y: 150}, {x: 400, y: 250}], obstacles: [{x: 220, y: 150, w: 50, h: 10, vx: 2}] },
+                    { walls: [ { x: 100, y: 100, w: 400, h: 10 }, { x: 100, y: 300, w: 400, h: 10 } ], gems: [{x: 300, y: 200}], obstacles: [{x: 200, y: 150, w: 10, h: 100, vy: 3}] },
+                    { walls: [ { x: 0, y: 200, w: 250, h: 10 }, { x: 350, y: 200, w: 250, h: 10 } ], gems: [{x: 300, y: 100}, {x: 300, y: 300}], obstacles: [] },
+                    { walls: [ { x: 150, y: 0, w: 10, h: 150 }, { x: 150, y: 250, w: 10, h: 150 }, { x: 450, y: 0, w: 10, h: 150 }, { x: 450, y: 250, w: 10, h: 150 } ], gems: [{x: 300, y: 200}], obstacles: [{x: 250, y: 100, w: 100, h: 10, vx: -2}] },
+                    { walls: [ { x: 50, y: 50, w: 500, h: 10}, { x: 50, y: 150, w: 500, h: 10}, { x: 50, y: 250, w: 500, h: 10}, { x: 50, y: 350, w: 500, h: 10} ], gems: [{x: 300, y: 100}, {x: 300, y: 200}, {x: 300, y: 300}], obstacles: [] },
+                    { walls: [], gems: [{x: 100, y: 100}, {x: 500, y: 100}, {x: 100, y: 300}, {x: 500, y: 300}], obstacles: [{x: 300, y: 200, w: 20, h: 20, vx: 3, vy: 3}] },
+                    { walls: [ { x: 295, y: 0, w: 10, h: 400 } ], gems: [{x: 150, y: 200}, {x: 450, y: 200}], obstacles: [{x: 100, y: 100, w: 10, h: 200, vy: 2}, {x: 500, y: 100, w: 10, h: 200, vy: -2}] },
+                    { walls: [ { x: 0, y: 195, w: 600, h: 10 } ], gems: [{x: 300, y: 100}, {x: 300, y: 300}], obstacles: [{x: 100, y: 100, w: 400, h: 10, vx: 4}, {x: 100, y: 300, w: 400, h: 10, vx: -4}] }
+                ];
+                const gtStart = { x: 20, y: 100 }, gtEnd = { x: 580, y: 300 };
+
+                function resetGemTrail(level) {
+                    gtCurrentLevel = level;
+                    gtGameActive = false;
+                    clearInterval(gtTimerInterval);
+                    cancelAnimationFrame(gtAnimationInterval);
+                    gtScore = 0;
+                    document.getElementById('gt-instructions').textContent = `Move to the start circle (S) to begin.`;
+                    document.getElementById('gt-timer').textContent = 'Time: 0.00s';
+                    document.getElementById('gt-score').textContent = `Score: ${gtScore}`;
+                    document.getElementById('gem-trail-level-indicator').textContent = `Level ${gtCurrentLevel + 1} / ${maxLevels}`;
+                    gtCompletionOverlay.style.display = 'none';
+                    gems = levels[gtCurrentLevel].gems.map(g => ({...g, active: true}));
+                    obstacles = levels[gtCurrentLevel].obstacles.map(o => ({...o}));
+                    drawGemTrail();
+                }
+
+                function drawGemTrail() {
+                    gtCtx.clearRect(0, 0, gtCanvas.width, gtCanvas.height);
+                    gtCtx.fillStyle = '#475569';
+                    levels[gtCurrentLevel].walls.forEach(rect => gtCtx.fillRect(rect.x, rect.y, rect.w, rect.h));
+                    
+                    obstacles.forEach(o => {
+                        gtCtx.fillStyle = '#ef4444';
+                        gtCtx.fillRect(o.x, o.y, o.w, o.h);
+                    });
+
+                    gems.forEach(g => {
+                        if (g.active) {
+                            gtCtx.fillStyle = '#f59e0b';
+                            gtCtx.beginPath(); gtCtx.arc(g.x, g.y, 8, 0, Math.PI * 2); gtCtx.fill();
+                        }
+                    });
+
+                    gtCtx.fillStyle = '#0284c7';
+                    gtCtx.beginPath(); gtCtx.arc(gtStart.x, gtStart.y, 10, 0, Math.PI * 2); gtCtx.fill();
+                    gtCtx.fillStyle = '#16a34a';
+                    gtCtx.beginPath(); gtCtx.arc(gtEnd.x, gtEnd.y, 10, 0, Math.PI * 2); gtCtx.fill();
+                    gtCtx.fillStyle = 'black'; gtCtx.font = '20px Arial';
+                    gtCtx.fillText('S', gtStart.x - 5, gtStart.y - 15);
+                    gtCtx.fillText('E', gtEnd.x - 5, gtEnd.y - 15);
+                }
+                
+                function gameLoop() {
+                    if (!gtGameActive) return;
+                    
+                    const x = mousePos.x;
+                    const y = mousePos.y;
+
+                    obstacles.forEach(o => {
+                        if (o.vx) { o.x += o.vx; if (o.x < 0 || o.x + o.w > 600) o.vx *= -1; }
+                        if (o.vy) { o.y += o.vy; if (o.y < 0 || o.y + o.h > 400) o.vy *= -1; }
+                    });
+
+                    drawGemTrail();
+                    gtCtx.fillStyle = '#0ea5e9';
+                    gtCtx.beginPath(); gtCtx.arc(x, y, 5, 0, Math.PI * 2); gtCtx.fill();
+
+                    let hit = levels[gtCurrentLevel].walls.some(wall => x > wall.x && x < wall.x + wall.w && y > wall.y && y < wall.y + wall.h) ||
+                              obstacles.some(o => x > o.x && x < o.x + o.w && y > o.y && y < o.y + o.h);
+                    
+                    if(hit) {
+                        gtCtx.fillStyle = 'rgba(239, 68, 68, 0.5)'; gtCtx.fillRect(0, 0, gtCanvas.width, gtCanvas.height);
+                        gtHits++;
+                        gtScore = Math.max(0, gtScore - 1);
+                        document.getElementById('gt-score').textContent = `Score: ${gtScore}`;
+                    }
+
+                    gems.forEach(g => {
+                        if (g.active && Math.hypot(x - g.x, y - g.y) < 10) {
+                            g.active = false;
+                            gtScore += 100;
+                            document.getElementById('gt-score').textContent = `Score: ${gtScore}`;
+                        }
+                    });
+
+                    if (Math.hypot(x - gtEnd.x, y - gtEnd.y) < 15) {
+                        gtGameActive = false; 
+                        clearInterval(gtTimerInterval);
+                        cancelAnimationFrame(gtAnimationInterval);
+                        const totalTime = (Date.now() - gtStartTime) / 1000;
+                        gtScore -= Math.floor(totalTime);
+                        appData.gemTrail.push({ level: gtCurrentLevel + 1, score: gtScore, durationSeconds: totalTime, hits: gtHits, gemsCollected: gems.filter(g => !g.active).length });
+                        document.getElementById('gt-completion-stats').textContent = `Final Score: ${gtScore}`;
+                        gtCompletionOverlay.style.display = 'flex';
+                        if (gtCurrentLevel + 1 >= maxLevels) {
+                            document.getElementById('gt-completion-title').textContent = 'Game Complete!';
+                            document.getElementById('gt-next-level-btn').textContent = 'Back to Hub';
+                            gamesPlayed.gemTrail = true;
+                            document.getElementById('status-gem-trail').textContent = 'Completed';
+                            document.getElementById('card-gem-trail').classList.add('completed');
+                            checkCompletion();
+                        }
+                    } else {
+                       gtAnimationInterval = requestAnimationFrame(gameLoop);
+                    }
+                }
+
+                gtCanvas.addEventListener('mousemove', e => {
+                    const rect = gtCanvas.getBoundingClientRect();
+                    mousePos.x = e.clientX - rect.left;
+                    mousePos.y = e.clientY - rect.top;
+                    if (!gtGameActive) {
+                        if (Math.hypot(mousePos.x - gtStart.x, mousePos.y - gtStart.y) < 15) {
+                            gtGameActive = true; gtStartTime = Date.now(); gtHits = 0;
+                            document.getElementById('gt-instructions').textContent = 'Guide the dot to the end (E).';
+                            gtTimerInterval = setInterval(() => {
+                                document.getElementById('gt-timer').textContent = `Time: ${((Date.now() - gtStartTime) / 1000).toFixed(2)}s`;
+                            }, 50);
+                            gameLoop();
+                        }
+                    }
+                });
+
+                document.getElementById('gt-next-level-btn').addEventListener('click', () => gamesPlayed.gemTrail ? navigateTo('screen-hub') : resetGemTrail(gtCurrentLevel + 1));
+                resetGemTrail(0);
+            }
+            
+            // --- Game 2: Journey Planner ---
+            function initJourneyPlanner() {
+                createGameScreen('journey-planner', 'Journey Planner', `
+                    <p class="text-center text-slate-600 mb-2">Click a path to make a choice. Your energy is limited!</p>
+                    <div class="text-center font-mono text-xl text-emerald-600 mb-2">Energy: <span id="jp-energy">100</span></div>
+                    <div class="relative">
+                        <canvas id="jp-canvas" class="game-canvas mx-auto" width="600" height="400"></canvas>
+                        <div id="jp-completion-overlay" class="completion-overlay rounded-lg">
+                            <h3 class="text-2xl font-bold text-slate-800">Journey Complete!</h3>
+                            <p id="jp-completion-stats" class="mt-2 text-slate-600"></p>
+                        </div>
+                    </div>`);
+                
+                const jpCanvas = document.getElementById('jp-canvas');
+                const jpCtx = jpCanvas.getContext('2d');
+                const jpCompletionOverlay = document.getElementById('jp-completion-overlay');
+                let jpEnergy = 100, jpLevel = 0;
+                const jpLevels = [
+                    { choices: [{ text: "Quiet Forest Path (-5)", cost: 5 }, { text: "Busy Market Road (-15)", cost: 15 }] },
+                    { choices: [{ text: "Sturdy Bridge (-10)", cost: 10 }, { text: "Wade through the cold river (-20)", cost: 20 }] },
+                    { choices: [{ text: "Ask for directions (-5)", cost: 5 }, { text: "Find your own way (-15)", cost: 15 }] },
+                    { choices: [{ text: "Take a short rest (+10)", cost: -10 }, { text: "Press onward (-10)", cost: 10 }] },
+                    { choices: [{ text: "Climb the final hill (-25)", cost: 25 }, { text: "Take the long, flat path around (-15)", cost: 15 }] },
+                    { choices: [{ text: "Share supplies (-5)", cost: 5 }, { text: "Keep supplies for yourself (-0)", cost: 0 }] },
+                    { choices: [{ text: "Navigate by stars (-20)", cost: 20 }, { text: "Wait for morning (-5)", cost: 5 }] },
+                    { choices: [{ text: "Help a stranger (-10)", cost: 10 }, { text: "Continue on your path (-0)", cost: 0 }] },
+                    { choices: [{ text: "Quick but risky shortcut (-20)", cost: 20 }, { text: "Safe but long route (-10)", cost: 10 }] },
+                    { choices: [{ text: "Enter the city gates (-5)", cost: 5 }, { text: "Camp outside the walls (-0)", cost: 0 }] }
+                ];
+                let playerPos = { x: 30, y: 200 };
+
+                function drawJourneyPlanner() {
+                    jpCtx.clearRect(0, 0, jpCanvas.width, jpCanvas.height);
+                    document.getElementById('journey-planner-level-indicator').textContent = `Stage ${jpLevel + 1} / ${jpLevels.length}`;
+
+                    jpCtx.strokeStyle = '#d1d5db'; jpCtx.lineWidth = 5;
+                    jpCtx.beginPath(); jpCtx.moveTo(0, 200); jpCtx.lineTo(600, 200); jpCtx.stroke();
+                    for(let i=0; i < jpLevels.length; i++) {
+                        jpCtx.fillStyle = (i < jpLevel) ? '#0ea5e9' : '#9ca3af';
+                        jpCtx.beginPath(); jpCtx.arc(30 + (i+1)*54, 200, 8, 0, Math.PI*2); jpCtx.fill();
+                    }
+                    
+                    jpCtx.fillStyle = '#0ea5e9';
+                    jpCtx.beginPath(); jpCtx.arc(playerPos.x, playerPos.y, 15, 0, Math.PI*2); jpCtx.fill();
+
+                    if (jpLevel >= jpLevels.length || jpEnergy <= 0) {
+                        appData.journeyPlanner.finalEnergy = jpEnergy;
+                        document.getElementById('jp-completion-stats').textContent = `You reached the end with ${jpEnergy} energy remaining.`;
+                        jpCompletionOverlay.style.display = 'flex';
+                        if(!gamesPlayed.journeyPlanner) {
+                            gamesPlayed.journeyPlanner = true;
+                            document.getElementById('status-journey-planner').textContent = 'Completed';
+                            document.getElementById('card-journey-planner').classList.add('completed');
+                            checkCompletion();
+                        }
+                        return;
+                    }
+                    
+                    const levelData = jpLevels[jpLevel];
+                    levelData.choices.forEach((choice, index) => {
+                        const yPos = 100 + index * 200;
+                        jpCtx.fillStyle = '#f8fafc'; jpCtx.strokeStyle = '#cbd5e1'; jpCtx.lineWidth = 2;
+                        jpCtx.beginPath(); jpCtx.roundRect(150, yPos - 40, 300, 80, [8]); jpCtx.fill(); jpCtx.stroke();
+                        jpCtx.fillStyle = '#0f172a'; jpCtx.font = 'bold 16px Inter'; jpCtx.textAlign = 'center';
+                        jpCtx.fillText(choice.text, 300, yPos + 5);
+                    });
+                }
+
+                jpCanvas.addEventListener('click', e => {
+                    if (jpLevel >= jpLevels.length || jpEnergy <= 0 || gamesPlayed.journeyPlanner) return;
+                    const rect = jpCanvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+                    jpLevels[jpLevel].choices.forEach((choice, index) => {
+                        const yPos = 100 + index * 200;
+                        if (x > 150 && x < 450 && y > yPos - 40 && y < yPos + 40) {
+                            appData.journeyPlanner.decisions.push({ stage: jpLevel + 1, choice: choice.text, cost: choice.cost, energyBefore: jpEnergy, timestamp: new Date().toISOString() });
+                            jpEnergy -= choice.cost;
+                            if (jpEnergy > 100) jpEnergy = 100;
+                            jpLevel++;
+                            playerPos.x = 30 + jpLevel * 54;
+                            document.getElementById('jp-energy').textContent = jpEnergy;
+                            drawJourneyPlanner();
+                        }
+                    });
+                });
+                drawJourneyPlanner();
+            }
+
+            // --- Game 3: Dream Weaver ---
+            function initDreamWeaver() {
+                createGameScreen('dream-weaver', '✨ Dream Weaver', `
+                     <div class="bg-white p-6 rounded-lg shadow-md min-h-[350px] flex flex-col justify-between">
+                        <p id="dw-story-text" class="text-lg text-slate-700 mb-6"></p>
+                        <div id="dw-story-choices" class="grid grid-cols-1 gap-4"></div>
+                     </div>`);
+                const storyTextEl = document.getElementById('dw-story-text');
+                const storyChoicesEl = document.getElementById('dw-story-choices');
+                let storyHistory = [];
+                const fallbackStory = [
+                    { storyText: "You find a mysterious, glowing object in a forest. It hums with a gentle energy.", choices: [{ text: "Pick it up.", trait: "adventurous" }, { text: "Observe from a distance.", trait: "cautious" }] },
+                    { storyText: "As you hold it, the object shows you a vision of a bustling city. You can feel its energy.", choices: [{ text: "Head towards the city.", trait: "social" }, { text: "Seek a quiet place to study the object.", trait: "solitary" }] },
+                    { storyText: "You've learned much from the object. It seems to have one last gift for you.", choices: [{ text: "Ask for knowledge.", trait: "cautious" }, { text: "Ask for an adventure.", trait: "adventurous" }] },
+                    { storyText: "A new path opens before you, leading out of the forest.", choices: [{ text: "Follow the new path.", trait: "adventurous" }, { text: "Stay where you are.", trait: "cautious" }] },
+                    { storyText: "The object fades, leaving you with your choice. The path ahead is yours to walk.", choices: [] }
+                ];
+
+                async function getNextStoryPart(prompt) {
+                    storyTextEl.textContent = "Weaving the next part of your dream...";
+                    storyChoicesEl.innerHTML = '<div class="h-8 w-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto"></div>';
+                    
+                    const responseText = await callGemini(prompt, true);
+                    if (!responseText) {
+                        storyTextEl.textContent = "The dream seems to be following a set path... (AI connection failed, using fallback)";
+                        setTimeout(() => renderStory(fallbackStory[appData.dreamWeaver.choices.length]), 1500);
+                        return;
+                    }
+
+                    try {
+                        const responseJson = JSON.parse(responseText);
+                        storyHistory.push(responseJson.storyText);
+                        renderStory(responseJson);
+                    } catch (e) {
+                        console.error("Failed to parse JSON from Gemini:", e);
+                        storyTextEl.textContent = "The dream became tangled... there was a parsing error. Using fallback.";
+                        setTimeout(() => renderStory(fallbackStory[appData.dreamWeaver.choices.length]), 1500);
+                    }
+                }
+                
+                function makeChoice(choice) {
+                    appData.dreamWeaver.choices.push({
+                        trait: choice.trait,
+                        text: choice.text,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    if (appData.dreamWeaver.choices.length >= 5) {
+                        endGame();
+                        return;
+                    }
+
+                    const prompt = `Continue this fantasy story. The story so far: "${storyHistory.join(' ')}". The user just chose to "${choice.text}". Now, describe the next situation and provide two new choices. One choice should be adventurous or social, the other should be cautious or solitary. Keep the story text to 2-3 sentences. Return a JSON object with "storyText" and "choices" (an array of objects with "text" and "trait" properties).`;
+                    getNextStoryPart(prompt);
+                }
+                
+                function endGame() {
+                    renderStory(fallbackStory[4]); // Show the final text
+                    if(!gamesPlayed.dreamWeaver) {
+                        gamesPlayed.dreamWeaver = true;
+                        document.getElementById('status-dream-weaver').textContent = 'Completed';
+                        document.getElementById('card-dream-weaver').classList.add('completed');
+                        checkCompletion();
+                    }
+                }
+
+                function renderStory(part) {
+                    storyTextEl.textContent = part.storyText;
+                    storyChoicesEl.innerHTML = '';
+                    if (part.choices.length === 0) {
+                        storyChoicesEl.innerHTML = `<button class="btn back-to-hub-btn bg-sky-600 text-white font-bold py-3 px-8 rounded-lg shadow-md w-full">Return from the Dream</button>`;
+                        return;
+                    }
+                    part.choices.forEach(choice => {
+                        const button = document.createElement('button');
+                        button.textContent = choice.text;
+                        button.className = 'btn bg-white p-4 rounded-lg border border-slate-300 hover:bg-slate-100 hover:border-sky-500 text-left w-full';
+                        button.onclick = () => makeChoice(choice);
+                        storyChoicesEl.appendChild(button);
+                    });
+                }
+                
+                const initialPrompt = `Start a fantasy story where the user finds a mysterious, glowing object in a forest. Describe the scene and provide two choices: one adventurous, one cautious. Return a JSON object with "storyText" and "choices" (an array of objects with "text" and "trait" properties).`;
+                getNextStoryPart(initialPrompt);
+            }
+            
+            // --- Game 4: Rhythm Tap ---
+            function initRhythmTap() {
+                 createGameScreen('rhythm-tap', 'Rhythm Tap', `
+                    <p id="rt-instructions" class="text-center text-slate-600 mb-4">Click or tap the circle as it pulses!</p>
+                    <div class="relative w-full h-64 flex items-center justify-center">
+                        <div id="rt-circle" class="w-32 h-32 bg-sky-500 rounded-full cursor-pointer flex items-center justify-center text-white font-bold text-2xl" style="transition: transform 0.5s ease-in-out;">TAP!</div>
+                    </div>
+                    <div class="text-center mt-4 font-mono">Score: <span id="rt-score">0</span></div>`);
+
+                const circle = document.getElementById('rt-circle');
+                const scoreEl = document.getElementById('rt-score');
+                const instructions = document.getElementById('rt-instructions');
+                const levelIndicator = document.getElementById('rhythm-tap-level-indicator');
+                let score = 0, level = 0, interval = 1000, timeoutId;
+                const maxLevels = 10;
+
+                function pulse() {
+                    if (gamesPlayed.rhythmTap) return;
+                    circle.style.transform = 'scale(1.1)';
+                    setTimeout(() => circle.style.transform = 'scale(1)', interval / 2);
+                    timeoutId = setTimeout(pulse, interval);
+                }
+
+                function handleClick() {
+                    if (gamesPlayed.rhythmTap) return;
+                    const scale = circle.style.transform ? parseFloat(circle.style.transform.replace('scale(', '')) : 1;
+                    let hitScore = 0;
+                    if (scale > 1.05) {
+                        hitScore = 10;
+                        instructions.textContent = 'Great!';
+                    } else if (scale > 1.0) {
+                        hitScore = 5;
+                         instructions.textContent = 'Good!';
+                    } else {
+                        hitScore = -5;
+                         instructions.textContent = 'Missed!';
+                    }
+                    score += hitScore;
+                    appData.rhythmTap.push({ level: level + 1, score: hitScore, totalScore: score, interval: interval, timestamp: new Date().toISOString() });
+                    scoreEl.textContent = score;
+
+                    if (appData.rhythmTap.length >= 5 * (level + 1)) { // 5 taps per level
+                        level++;
+                        interval *= 0.9;
+                        levelIndicator.textContent = `Level ${level + 1} / ${maxLevels}`;
+                        if (level >= maxLevels) {
+                            endGame();
+                        }
+                    }
+                }
+                
+                function endGame() {
+                    clearTimeout(timeoutId);
+                    circle.removeEventListener('click', handleClick);
+                    instructions.textContent = `Game Over! Final Score: ${score}`;
+                    gamesPlayed.rhythmTap = true;
+                    document.getElementById('status-rhythm-tap').textContent = 'Completed';
+                    document.getElementById('card-rhythm-tap').classList.add('completed');
+                    checkCompletion();
+                }
+
+                circle.addEventListener('click', handleClick);
+                levelIndicator.textContent = `Level ${level + 1} / ${maxLevels}`;
+                pulse();
+            }
+
+            // --- Game 5: Memory Match ---
+            function initMemoryMatch() {
+                createGameScreen('memory-match', 'Memory Match', `
+                    <p id="mm-instructions" class="text-center text-slate-600 mb-2">Find all the matching pairs.</p>
+                    <div class="flex justify-center items-center gap-8 font-mono text-lg mb-2">
+                        <span>Moves: <span id="mm-moves">0</span></span>
+                        <span>Time: <span id="mm-timer">0</span>s</span>
+                    </div>
+                    <div id="mm-grid" class="grid grid-cols-4 gap-4 max-w-md mx-auto aspect-square"></div>
+                `);
+
+                const grid = document.getElementById('mm-grid');
+                const movesEl = document.getElementById('mm-moves');
+                const timerEl = document.getElementById('mm-timer');
+                const levelIndicator = document.getElementById('memory-match-level-indicator');
+                let level = 0, moves = 0, matches = 0, timer = 0, timerId;
+                let firstCard = null, secondCard = null, lockBoard = false;
+                const maxLevels = 10;
+                const icons = ['🌕', '🌟', '☀️', '☁️', '💧', '⚡️', '🌈', '🔥', '💎', '🚀', '🌍', '❤️', '⚙️', '💡', '🔑', '🎉'];
+
+                function startLevel(level) {
+                    document.getElementById('memory-match-level-indicator').textContent = `Level ${level + 1} / ${maxLevels}`;
+                    moves = 0;
+                    matches = 0;
+                    timer = 0;
+                    movesEl.textContent = moves;
+                    timerEl.textContent = `${timer}s`;
+                    clearInterval(timerId);
+                    timerId = setInterval(() => {
+                        timer++;
+                        timerEl.textContent = `${timer}s`;
+                    }, 1000);
+
+                    const pairs = Math.min(Math.floor(2 + level * 1.5), 16);
+                    const gridCols = Math.ceil(Math.sqrt(pairs * 2));
+                    const cardIcons = icons.slice(0, pairs);
+                    const shuffledIcons = [...cardIcons, ...cardIcons].sort(() => 0.5 - Math.random());
+                    
+                    grid.innerHTML = '';
+                    grid.className = `grid gap-4 max-w-md mx-auto aspect-square grid-cols-${gridCols}`;
+
+                    shuffledIcons.forEach(icon => {
+                        const card = document.createElement('div');
+                        card.className = 'memory-card w-full h-full cursor-pointer';
+                        card.dataset.icon = icon;
+                        card.innerHTML = `
+                            <div class="memory-card-inner">
+                                <div class="memory-card-front"></div>
+                                <div class="memory-card-back">${icon}</div>
+                            </div>`;
+                        card.addEventListener('click', () => flipCard(card));
+                        grid.appendChild(card);
+                    });
+                }
+
+                function flipCard(card) {
+                    if (lockBoard || card.classList.contains('flipped')) return;
+                    card.classList.add('flipped');
+
+                    if (!firstCard) {
+                        firstCard = card;
+                        return;
+                    }
+                    secondCard = card;
+                    moves++;
+                    movesEl.textContent = moves;
+                    lockBoard = true;
+
+                    checkForMatch();
+                }
+
+                function checkForMatch() {
+                    let isMatch = firstCard.dataset.icon === secondCard.dataset.icon;
+                    isMatch ? disableCards() : unflipCards();
+                }
+
+                function disableCards() {
+                    matches++;
+                    resetBoard();
+                    if (matches * 2 === grid.childNodes.length) {
+                        appData.memoryMatch.push({ level: level + 1, moves: moves, timeTaken: timer, timestamp: new Date().toISOString() });
+                        level++;
+                        if (level >= maxLevels) {
+                            clearInterval(timerId);
+                            setTimeout(() => {
+                                gamesPlayed.memoryMatch = true;
+                                document.getElementById('status-memory-match').textContent = 'Completed';
+                                document.getElementById('card-memory-match').classList.add('completed');
+                                checkCompletion();
+                                navigateTo('screen-hub');
+                            }, 1000);
+                        } else {
+                            setTimeout(() => startLevel(level), 1000);
+                        }
+                    }
+                }
+
+                function unflipCards() {
+                    setTimeout(() => {
+                        firstCard.classList.remove('flipped');
+                        secondCard.classList.remove('flipped');
+                        resetBoard();
+                    }, 1000);
+                }
+
+                function resetBoard() {
+                    [firstCard, secondCard, lockBoard] = [null, null, false];
+                }
+
+                startLevel(0);
+            }
+            
+            // --- Game 6: Quick Sort ---
+            function initQuickSort() {
+                createGameScreen('quick-sort', 'Quick Sort', `
+                    <p id="qs-instructions" class="text-center text-slate-600 mb-2">Sort the shape into the correct bin!</p>
+                    <div class="flex justify-center items-center gap-8 font-mono text-lg mb-2">
+                        <span>Score: <span id="qs-score">0</span></span>
+                        <span>Time Left: <span id="qs-timer">60</span>s</span>
+                    </div>
+                    <div class="relative">
+                        <canvas id="qs-canvas" class="game-canvas mx-auto" width="600" height="400"></canvas>
+                    </div>`);
+                
+                const qsCanvas = document.getElementById('qs-canvas');
+                const qsCtx = qsCanvas.getContext('2d');
+                let score = 0, timeLeft = 60, timerId;
+                let currentShape = {};
+                const shapes = ['circle', 'square'];
+                const bins = [
+                    { x: 50, y: 300, w: 200, h: 80, type: 'circle', color: '#3b82f6' },
+                    { x: 350, y: 300, w: 200, h: 80, type: 'square', color: '#ef4444' }
+                ];
+
+                function spawnShape() {
+                    const type = shapes[Math.floor(Math.random() * shapes.length)];
+                    currentShape = {
+                        type: type,
+                        x: qsCanvas.width / 2,
+                        y: 100,
+                        size: 20,
+                        isDragging: false,
+                        startTime: Date.now()
+                    };
+                }
+
+                function drawQuickSort() {
+                    qsCtx.clearRect(0, 0, qsCanvas.width, qsCanvas.height);
+                    
+                    bins.forEach(bin => {
+                        qsCtx.fillStyle = bin.color;
+                        qsCtx.globalAlpha = 0.2;
+                        qsCtx.fillRect(bin.x, bin.y, bin.w, bin.h);
+                        qsCtx.globalAlpha = 1.0;
+                        qsCtx.strokeStyle = bin.color;
+                        qsCtx.strokeRect(bin.x, bin.y, bin.w, bin.h);
+                        qsCtx.fillStyle = bin.color;
+                        qsCtx.font = 'bold 20px Inter';
+                        qsCtx.textAlign = 'center';
+                        qsCtx.fillText(bin.type.toUpperCase(), bin.x + bin.w / 2, bin.y + bin.h / 2 + 8);
+                    });
+
+                    if (currentShape.type) {
+                        qsCtx.fillStyle = '#1e293b';
+                        if (currentShape.type === 'circle') {
+                            qsCtx.beginPath();
+                            qsCtx.arc(currentShape.x, currentShape.y, currentShape.size, 0, Math.PI * 2);
+                            qsCtx.fill();
+                        } else {
+                            qsCtx.fillRect(currentShape.x - currentShape.size, currentShape.y - currentShape.size, currentShape.size * 2, currentShape.size * 2);
+                        }
+                    }
+                }
+
+                function endGame() {
+                    clearInterval(timerId);
+                    qsCanvas.removeEventListener('mousedown', onMouseDown);
+                    qsCanvas.removeEventListener('mousemove', onMouseMove);
+                    qsCanvas.removeEventListener('mouseup', onMouseUp);
+                    
+                    qsCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    qsCtx.fillRect(0, 0, qsCanvas.width, qsCanvas.height);
+                    qsCtx.fillStyle = '#1e293b';
+                    qsCtx.font = 'bold 30px Inter';
+                    qsCtx.textAlign = 'center';
+                    qsCtx.fillText(`Game Over! Final Score: ${score}`, qsCanvas.width / 2, qsCanvas.height / 2);
+
+                    gamesPlayed.quickSort = true;
+                    document.getElementById('status-quick-sort').textContent = 'Completed';
+                    document.getElementById('card-quick-sort').classList.add('completed');
+                    checkCompletion();
+                }
+
+                function onMouseDown(e) {
+                    const rect = qsCanvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    if (Math.hypot(x - currentShape.x, y - currentShape.y) < currentShape.size) {
+                        currentShape.isDragging = true;
+                    }
+                }
+
+                function onMouseMove(e) {
+                    if (currentShape.isDragging) {
+                        const rect = qsCanvas.getBoundingClientRect();
+                        currentShape.x = e.clientX - rect.left;
+                        currentShape.y = e.clientY - rect.top;
+                        drawQuickSort();
+                    }
+                }
+
+                function onMouseUp(e) {
+                    if (currentShape.isDragging) {
+                        currentShape.isDragging = false;
+                        let sortedCorrectly = false;
+                        bins.forEach(bin => {
+                            if (currentShape.x > bin.x && currentShape.x < bin.x + bin.w && currentShape.y > bin.y && currentShape.y < bin.y + bin.h) {
+                                if (currentShape.type === bin.type) {
+                                    score += 10;
+                                    sortedCorrectly = true;
+                                } else {
+                                    score -= 5;
+                                }
+                            }
+                        });
+                        
+                        const timeTaken = (Date.now() - currentShape.startTime) / 1000;
+                        appData.quickSort.push({
+                            shape: currentShape.type,
+                            correct: sortedCorrectly,
+                            timeTaken: timeTaken,
+                            finalScore: score,
+                            timestamp: new Date().toISOString()
+                        });
+                        
+                        document.getElementById('qs-score').textContent = score;
+                        spawnShape();
+                        drawQuickSort();
+                    }
+                }
+
+                qsCanvas.addEventListener('mousedown', onMouseDown);
+                qsCanvas.addEventListener('mousemove', onMouseMove);
+                qsCanvas.addEventListener('mouseup', onMouseUp);
+                
+                timerId = setInterval(() => {
+                    timeLeft--;
+                    document.getElementById('qs-timer').textContent = `${timeLeft}s`;
+                    if (timeLeft <= 0) {
+                        endGame();
+                    }
+                }, 1000);
+
+                spawnShape();
+                drawQuickSort();
+            }
+
+             // --- Personalized Feedback ---
+            document.getElementById('get-feedback-btn').addEventListener('click', async () => {
+                const feedbackBtn = document.getElementById('get-feedback-btn');
+                const feedbackContainer = document.getElementById('feedback-container');
+                
+                feedbackBtn.classList.add('disabled');
+                feedbackContainer.classList.remove('hidden');
+                feedbackContainer.innerHTML = '<div class="h-6 w-6 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>';
+
+                let playstyle = [];
+                if (appData.gemTrail.length > 0) {
+                    const avgHits = appData.gemTrail.reduce((acc, val) => acc + val.hits, 0) / appData.gemTrail.length;
+                    playstyle.push(avgHits > 5 ? "a bold and quick player" : "a precise and steady player");
+                }
+                if (appData.journeyPlanner.decisions.length > 0) {
+                    const totalEnergyCost = appData.journeyPlanner.decisions.reduce((acc, val) => acc + val.cost, 0);
+                    playstyle.push(totalEnergyCost > 60 ? "a direct, high-energy planner" : "a thoughtful and efficient planner");
+                }
+                if (appData.dreamWeaver.choices.length > 0) {
+                    const socialChoices = appData.dreamWeaver.choices.filter(c => c.trait === 'social' || c.trait === 'adventurous').length;
+                    playstyle.push(socialChoices >= appData.dreamWeaver.choices.length / 2 ? "a curious adventurer" : "a reflective thinker");
+                }
+                if(appData.rhythmTap.length > 0) {
+                    const finalScore = appData.rhythmTap[appData.rhythmTap.length - 1].totalScore;
+                    playstyle.push(finalScore > 200 ? "a focused and rhythmic player" : "a player with a unique tempo");
+                }
+                if(appData.memoryMatch.length > 0) {
+                    const avgMoves = appData.memoryMatch.reduce((acc, val) => acc + val.moves, 0) / appData.memoryMatch.length;
+                    playstyle.push(avgMoves < 15 ? "a sharp and focused mind" : "a methodical and deliberate thinker");
+                }
+                if(appData.quickSort.length > 0) {
+                    const avgTime = appData.quickSort.reduce((acc, val) => acc + val.timeTaken, 0) / appData.quickSort.length;
+                    playstyle.push(avgTime < 2 ? "a quick and decisive sorter" : "a methodical and accurate sorter");
+                }
+                
+                const prompt = `My gameplay style is described as: "${playstyle.join(', ')}". Write a short, positive, and encouraging feedback message (2-3 sentences). Do not use clinical or diagnostic language. Suggest a simple, mindful activity they might enjoy today.`;
+                
+                const feedbackText = await callGemini(prompt);
+                if (feedbackText) {
+                    feedbackContainer.textContent = feedbackText;
+                } else {
+                    feedbackContainer.textContent = "Could not generate feedback at this time. This may be due to network issues.";
+                }
+                feedbackBtn.remove();
+            });
+            
+            // --- CSV Download ---
+            document.getElementById('download-csv-btn').addEventListener('click', () => {
+                const rows = [
+                    ["sessionId", "userId", "game", "timestamp", "metric_type", "metric_value_1", "metric_value_2", "metric_value_3", "metric_value_4"]
+                ];
+                
+                const common = [appData.sessionId, userId];
+
+                appData.gemTrail.forEach(rec => {
+                    rows.push([...common, "gemTrail", new Date().toISOString(), "level_complete", rec.level, rec.score, rec.durationSeconds, rec.hits]);
+                });
+                appData.journeyPlanner.decisions.forEach(rec => {
+                    rows.push([...common, "journeyPlanner", rec.timestamp, "decision", rec.stage, rec.choice, rec.cost, rec.energyBefore]);
+                });
+                appData.dreamWeaver.choices.forEach(rec => {
+                    rows.push([...common, "dreamWeaver", rec.timestamp, "choice", rec.trait, rec.text]);
+                });
+                appData.rhythmTap.forEach(rec => {
+                    rows.push([...common, "rhythmTap", rec.timestamp, "tap_event", rec.level, rec.score, rec.totalScore, rec.interval]);
+                });
+                 appData.memoryMatch.forEach(rec => {
+                    rows.push([...common, "memoryMatch", rec.timestamp, "level_complete", rec.level, rec.moves, rec.timeTaken]);
+                });
+                appData.quickSort.forEach(rec => {
+                    rows.push([...common, "quickSort", rec.timestamp, "sort_event", rec.shape, rec.correct, rec.timeTaken, rec.finalScore]);
+                });
+
+                let csvContent = "data:text/csv;charset=utf-8," 
+                    + rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `mindful_play_session_${appData.sessionId}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+
+        });
+    </script>
+</body>
+</html>
