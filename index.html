@@ -133,7 +133,13 @@
         <div id="screen-welcome" class="screen active text-center py-16">
             <h1 class="text-4xl md:text-6xl font-bold text-slate-800 tracking-tight">Mindful Play</h1>
             <p class="mt-4 text-lg text-slate-600">A short suite of games to challenge your focus and decision-making.</p>
-            <button id="start-btn" class="btn mt-10 bg-sky-600 text-white font-bold py-4 px-10 rounded-full shadow-lg hover:bg-sky-700 text-lg">Begin Your Session</button>
+            <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button id="google-signin-btn" class="btn bg-white text-slate-700 font-bold py-3 px-8 rounded-full shadow-md hover:bg-slate-50 flex items-center gap-3">
+                    <svg class="w-6 h-6" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path><path fill="#FF3D00" d="M6.306 14.691l6.057 4.844C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.021 35.596 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"></path></svg>
+                    Sign in with Google
+                </button>
+                <button id="start-btn" class="btn bg-sky-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:bg-sky-700">Play as Guest</button>
+            </div>
         </div>
 
         <!-- Game Hub Screen -->
@@ -144,7 +150,7 @@
             </div>
             <div class="flex justify-between items-center mb-8">
                  <h2 class="text-3xl font-bold text-slate-800">Game Hub</h2>
-                 <div class="text-right">
+                 <div id="user-display" class="text-right">
                     <span class="text-xs text-slate-500">User ID</span>
                     <p id="user-id-display" class="font-mono text-xs text-slate-700"></p>
                 </div>
@@ -202,7 +208,7 @@
                 <p id="results-subtitle" class="mt-2 text-slate-600">Your session data has been processed.</p>
                 <div class="flex justify-center gap-4">
                     <button id="get-feedback-btn" class="btn mt-6 bg-amber-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-amber-600">✨ Get My Insight</button>
-                    <button id="download-csv-btn" class="btn mt-6 bg-blue-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-600">Download CSV</button>
+                    <button id="download-csv-btn" class="btn mt-6 bg-blue-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-600 hidden">Download CSV</button>
                 </div>
                 <div id="feedback-container" class="mt-4 p-4 bg-amber-50 rounded-lg text-slate-700 text-left hidden"></div>
             </div>
@@ -218,7 +224,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-analytics.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -238,6 +244,8 @@
 
         let userId = null;
         let isOnline = false;
+        let isAdmin = false;
+        const adminEmail = "pavi261105@gmail.com";
         const appId = 'mindful-play-capstone';
 
         function handleOfflineMode() {
@@ -250,31 +258,48 @@
         }
 
         onAuthStateChanged(auth, (user) => {
+            document.getElementById('loading-overlay').style.display = 'none';
             if (user) {
                 isOnline = true;
                 userId = user.uid;
-                document.getElementById('user-id-display').textContent = userId.substring(0, 12) + '...';
-                document.getElementById('loading-overlay').style.display = 'none';
+                if (user.isAnonymous) {
+                    document.getElementById('user-id-display').textContent = 'Guest: ' + userId.substring(0, 8) + '...';
+                } else {
+                    document.getElementById('user-id-display').textContent = user.displayName || user.email;
+                }
+
+                if (user.email === adminEmail) {
+                    isAdmin = true;
+                }
+            } else {
+                handleOfflineMode();
             }
         });
 
-        async function initializeAuth() {
+        async function initializeAuth(isGuest = true) {
+             document.getElementById('loading-overlay').style.display = 'flex';
             try {
-                await signInAnonymously(auth);
+                if (isGuest) {
+                    await signInAnonymously(auth);
+                } else {
+                    const provider = new GoogleAuthProvider();
+                    await signInWithPopup(auth, provider);
+                }
+                navigateTo('screen-hub');
             } catch (error) {
-                console.error("Anonymous sign-in failed:", error);
+                console.error("Sign-in failed:", error);
                 let errorMessage = '';
                 switch (error.code) {
                     case 'auth/configuration-not-found':
                         errorMessage = `
                             <div class="text-center p-4 bg-white rounded-lg shadow-xl">
                                 <p class="font-bold text-red-600 text-lg">Firebase Configuration Error</p>
-                                <p class="mt-2 text-slate-600">Anonymous sign-in is not enabled for this project.</p>
+                                <p class="mt-2 text-slate-600">A sign-in method is not enabled for this project.</p>
                                 <p class="mt-4 text-sm text-slate-500 text-left">
                                     <strong>Action Required:</strong><br>
                                     1. Go to your Firebase Console.<br>
                                     2. Navigate to Authentication -> Sign-in method.<br>
-                                    3. Enable the "Anonymous" provider and save.<br>
+                                    3. Enable both "Anonymous" and "Google" providers and save.<br>
                                     4. Refresh this page.
                                 </p>
                             </div>`;
@@ -315,8 +340,6 @@
                 }
             }
         }
-
-        initializeAuth();
 
         document.addEventListener('DOMContentLoaded', function () {
             const screens = document.querySelectorAll('.screen');
@@ -362,7 +385,8 @@
                     </div>`;
             }
 
-            document.getElementById('start-btn').addEventListener('click', () => navigateTo('screen-hub'));
+            document.getElementById('start-btn').addEventListener('click', () => initializeAuth(true));
+            document.getElementById('google-signin-btn').addEventListener('click', () => initializeAuth(false));
             
             document.getElementById('finish-btn').addEventListener('click', async () => {
                 const finishBtn = document.getElementById('finish-btn');
@@ -377,6 +401,7 @@
                         document.getElementById('results-title').textContent = 'Session Saved Locally!';
                         document.getElementById('results-subtitle').textContent = 'Your session data has been saved to this browser.';
                         document.getElementById('results-data').textContent = JSON.stringify(appData, null, 2);
+                        if (isAdmin) document.getElementById('download-csv-btn').classList.remove('hidden');
                         navigateTo('screen-results');
                     } catch (error) {
                         console.error("Error saving to localStorage:", error);
@@ -396,6 +421,7 @@
                     document.getElementById('results-title').textContent = 'Session Saved to Cloud!';
                     document.getElementById('results-subtitle').textContent = 'Your session data has been saved successfully.';
                     document.getElementById('results-data').textContent = JSON.stringify(sessionData, null, 2);
+                    if (isAdmin) document.getElementById('download-csv-btn').classList.remove('hidden');
                     navigateTo('screen-results');
                 } catch (error) {
                     console.error("Error writing document: ", error);
@@ -763,7 +789,7 @@
                         timestamp: new Date().toISOString()
                     });
                     
-                    if (appData.dreamWeaver.choices.length >= 5) {
+                    if (appData.dreamWeaver.choices.length >= 4) { // Changed from 5 to 4 to match fallback story length
                         endGame();
                         return;
                     }
@@ -885,7 +911,7 @@
                 const levelIndicator = document.getElementById('memory-match-level-indicator');
                 let level = 0, moves = 0, matches = 0, timer = 0, timerId;
                 let firstCard = null, secondCard = null, lockBoard = false;
-                const maxLevels = 10;
+                const maxLevels = 5;
                 const icons = ['🌕', '🌟', '☀️', '☁️', '💧', '⚡️', '🌈', '🔥', '💎', '🚀', '🌍', '❤️', '⚙️', '💡', '🔑', '🎉'];
 
                 function startLevel(level) {
@@ -901,13 +927,14 @@
                         timerEl.textContent = `${timer}s`;
                     }, 1000);
 
-                    const pairs = Math.min(Math.floor(2 + level * 1.5), 16);
+                    const pairs = Math.min(Math.floor(2 + level * 2), 8);
                     const gridCols = Math.ceil(Math.sqrt(pairs * 2));
                     const cardIcons = icons.slice(0, pairs);
                     const shuffledIcons = [...cardIcons, ...cardIcons].sort(() => 0.5 - Math.random());
                     
                     grid.innerHTML = '';
                     grid.className = `grid gap-4 max-w-md mx-auto aspect-square grid-cols-${gridCols}`;
+
 
                     shuffledIcons.forEach(icon => {
                         const card = document.createElement('div');
