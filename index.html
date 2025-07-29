@@ -13,8 +13,6 @@
     <!-- Visualization & Content Choices: 
         - Report Info: Capturing behavioral proxies for anxiety/depression. Goal: Collect Data. Viz: Interactive Canvas-based games with levels and enhanced mechanics (collectibles, moving obstacles, visual maps). Interaction: Mouse movement, clicks, timing. Justification: More engaging game mechanics lead to more natural player behavior, providing richer and more nuanced data for the ML model.
         - Report Info: Logged user interaction data. Goal: Demonstrate Data Capture. Viz: Formatted JSON in a <pre> tag. Interaction: Static display. Justification: Showing the raw output is the most direct way to demonstrate the data that will be fed into the machine learning model.
-        - Gemini Feature 1: Dynamic Story Generation. Goal: Enhance engagement. Viz: Text + Buttons. Interaction: User choice drives API call. Justification: Creates a unique, replayable experience, logging user choice archetypes.
-        - Gemini Feature 2: Personalized Feedback. Goal: Provide user value. Viz: Text block. Interaction: Button click triggers analysis and API call. Justification: Offers a positive, reflective summary of the user's session, demonstrating a constructive use of the collected data.
     -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
@@ -125,29 +123,15 @@
 
     <div id="app" class="max-w-5xl mx-auto p-4 md:p-8">
         
-        <div id="loading-overlay" class="fixed inset-0 bg-slate-100/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <p id="loading-text" class="text-lg font-semibold text-slate-700">Connecting...</p>
-        </div>
-
         <!-- Welcome Screen -->
         <div id="screen-welcome" class="screen active text-center py-16">
             <h1 class="text-4xl md:text-6xl font-bold text-slate-800 tracking-tight">Mindful Play</h1>
             <p class="mt-4 text-lg text-slate-600">A short suite of games to challenge your focus and decision-making.</p>
-            <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-                <button id="google-signin-btn" class="btn bg-white text-slate-700 font-bold py-3 px-8 rounded-full shadow-md hover:bg-slate-50 flex items-center gap-3">
-                    <svg class="w-6 h-6" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path><path fill="#FF3D00" d="M6.306 14.691l6.057 4.844C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.021 35.596 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"></path></svg>
-                    Sign in with Google
-                </button>
-                <button id="start-btn" class="btn bg-sky-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:bg-sky-700">Play as Guest</button>
-            </div>
+            <button id="start-btn" class="btn mt-10 bg-sky-600 text-white font-bold py-4 px-10 rounded-full shadow-lg hover:bg-sky-700 text-lg">Begin Your Session</button>
         </div>
 
         <!-- Game Hub Screen -->
         <div id="screen-hub" class="screen">
-            <div id="offline-banner" class="hidden bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 mb-6 rounded-md" role="alert">
-                <p class="font-bold">Offline Mode</p>
-                <p>Could not connect to the server. Gameplay will be saved locally to your browser.</p>
-            </div>
             <div class="flex justify-between items-center mb-8">
                  <h2 class="text-3xl font-bold text-slate-800">Game Hub</h2>
                  <div id="user-display" class="text-right">
@@ -167,8 +151,8 @@
                     <span id="status-journey-planner" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
                 </div>
                 <div id="card-dream-weaver" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
-                    <h3 class="text-xl font-semibold text-slate-800">✨ Dream Weaver</h3>
-                    <p class="mt-2 text-sm text-slate-500">An AI-powered story where you decide what happens next.</p>
+                    <h3 class="text-xl font-semibold text-slate-800">Dream Weaver</h3>
+                    <p class="mt-2 text-sm text-slate-500">A story where you decide what happens next.</p>
                     <span id="status-dream-weaver" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
                 </div>
                 <div id="card-rhythm-tap" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
@@ -188,7 +172,7 @@
                 </div>
             </div>
             <div class="text-center mt-12">
-                <button id="finish-btn" class="btn bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-emerald-700 disabled">Save & Finish Session</button>
+                <button id="finish-btn" class="btn bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-emerald-700 disabled">Finish & Download CSV</button>
             </div>
         </div>
 
@@ -207,10 +191,8 @@
                 <h3 class="text-xl font-semibold text-slate-800">Thank You!</h3>
                 <p id="results-subtitle" class="mt-2 text-slate-600">Your session data has been processed.</p>
                 <div class="flex justify-center gap-4">
-                    <button id="get-feedback-btn" class="btn mt-6 bg-amber-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-amber-600">✨ Get My Insight</button>
-                    <button id="download-csv-btn" class="btn mt-6 bg-blue-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-600 hidden">Download CSV</button>
+                    <button id="download-csv-btn" class="btn mt-6 bg-blue-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-600">Download CSV</button>
                 </div>
-                <div id="feedback-container" class="mt-4 p-4 bg-amber-50 rounded-lg text-slate-700 text-left hidden"></div>
             </div>
             <div class="bg-slate-800 text-white p-6 mt-6 rounded-lg shadow-md">
                 <h3 class="text-lg font-semibold text-slate-200">Developer View: Captured Behavioral Data</h3>
@@ -222,78 +204,7 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-analytics.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDir1X-mtrbFpX1mRmLvjwkCpAYUs5_5P0",
-            authDomain: "ml-games-d8420.firebaseapp.com",
-            projectId: "ml-games-d8420",
-            storageBucket: "ml-games-d8420.firebasestorage.app",
-            messagingSenderId: "465997289083",
-            appId: "1:465997289083:web:4f1f1d17b1ccad7f08b4de",
-            measurementId: "G-YSWHW294S0"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        let userId = null;
-        let isOnline = false;
-        let isAdmin = false;
-        const adminEmail = "pavi261105@gmail.com";
-        const appId = 'mindful-play-capstone';
-
-        function handleOfflineMode() {
-            isOnline = false;
-            userId = `local-${crypto.randomUUID()}`;
-            document.getElementById('user-id-display').textContent = 'Offline Mode';
-            document.getElementById('loading-overlay').style.display = 'none';
-            document.getElementById('offline-banner').classList.remove('hidden');
-            document.getElementById('finish-btn').textContent = 'Finish & Save Locally';
-        }
-
-        onAuthStateChanged(auth, (user) => {
-            document.getElementById('loading-overlay').style.display = 'none';
-            if (user) {
-                isOnline = true;
-                userId = user.uid;
-                if (user.isAnonymous) {
-                    document.getElementById('user-id-display').textContent = 'Guest: ' + userId.substring(0, 8) + '...';
-                } else {
-                    document.getElementById('user-id-display').textContent = user.displayName || user.email;
-                }
-
-                if (user.email === adminEmail) {
-                    isAdmin = true;
-                }
-            }
-        });
-
-        async function initializeAuth(isGuest = true) {
-             document.getElementById('loading-overlay').style.display = 'flex';
-            try {
-                if (isGuest) {
-                    await signInAnonymously(auth);
-                } else {
-                    const provider = new GoogleAuthProvider();
-                    await signInWithPopup(auth, provider);
-                }
-                navigateTo('screen-hub');
-            } catch (error) {
-                console.error("Sign-in failed:", error);
-                const loadingText = document.getElementById('loading-text');
-                loadingText.innerHTML = `<span class="text-red-500">Connection Failed.</span> Starting in offline mode...`;
-                setTimeout(() => {
-                    handleOfflineMode();
-                    navigateTo('screen-hub');
-                }, 2000);
-            }
-        }
+        let userId = `local-${crypto.randomUUID()}`;
 
         document.addEventListener('DOMContentLoaded', function () {
             const screens = document.querySelectorAll('.screen');
@@ -339,49 +250,24 @@
                     </div>`;
             }
 
-            document.getElementById('start-btn').addEventListener('click', () => initializeAuth(true));
-            document.getElementById('google-signin-btn').addEventListener('click', () => initializeAuth(false));
+            document.getElementById('start-btn').addEventListener('click', () => {
+                document.getElementById('user-id-display').textContent = userId.substring(0, 18);
+                navigateTo('screen-hub')
+            });
             
-            document.getElementById('finish-btn').addEventListener('click', async () => {
-                const finishBtn = document.getElementById('finish-btn');
-                if (finishBtn.classList.contains('disabled')) return;
-                
-                if (!isOnline) {
-                    try {
-                        let localSessions = JSON.parse(localStorage.getItem('mindful-play-sessions')) || [];
-                        localSessions.push(appData);
-                        localStorage.setItem('mindful-play-sessions', JSON.stringify(localSessions));
-                        
-                        document.getElementById('results-title').textContent = 'Session Saved Locally!';
-                        document.getElementById('results-subtitle').textContent = 'Your session data has been saved to this browser.';
-                        document.getElementById('results-data').textContent = JSON.stringify(appData, null, 2);
-                        if (isAdmin) document.getElementById('download-csv-btn').classList.remove('hidden');
-                        navigateTo('screen-results');
-                    } catch (error) {
-                        console.error("Error saving to localStorage:", error);
-                        alert("Could not save session data locally. Your browser might be in private mode or storage is full.");
-                    }
-                    return;
-                }
-
-                finishBtn.textContent = 'Saving...';
-                finishBtn.classList.add('disabled');
-
+            document.getElementById('finish-btn').addEventListener('click', () => {
                 try {
-                    const sessionData = { ...appData, createdAt: serverTimestamp(), userId: userId };
-                    const docRef = doc(db, "artifacts", appId, "public", "data", "gameSessions", appData.sessionId);
-                    await setDoc(docRef, sessionData);
-
-                    document.getElementById('results-title').textContent = 'Session Saved to Cloud!';
-                    document.getElementById('results-subtitle').textContent = 'Your session data has been saved successfully.';
-                    document.getElementById('results-data').textContent = JSON.stringify(sessionData, null, 2);
-                    if (isAdmin) document.getElementById('download-csv-btn').classList.remove('hidden');
+                    let localSessions = JSON.parse(localStorage.getItem('mindful-play-sessions')) || [];
+                    localSessions.push(appData);
+                    localStorage.setItem('mindful-play-sessions', JSON.stringify(localSessions));
+                    
+                    document.getElementById('results-title').textContent = 'Session Saved Locally!';
+                    document.getElementById('results-subtitle').textContent = 'Your session data has been saved to this browser.';
+                    document.getElementById('results-data').textContent = JSON.stringify(appData, null, 2);
                     navigateTo('screen-results');
                 } catch (error) {
-                    console.error("Error writing document: ", error);
-                    alert("Could not save session data. Please check console for errors.");
-                    finishBtn.textContent = 'Save & Finish Session';
-                    finishBtn.classList.remove('disabled');
+                    console.error("Error saving to localStorage:", error);
+                    alert("Could not save session data locally. Your browser might be in private mode or storage is full.");
                 }
             });
             
@@ -397,60 +283,6 @@
             document.getElementById('card-rhythm-tap').addEventListener('click', () => { if (!gamesPlayed.rhythmTap) { navigateTo('screen-rhythm-tap'); initRhythmTap(); } });
             document.getElementById('card-memory-match').addEventListener('click', () => { if (!gamesPlayed.memoryMatch) { navigateTo('screen-memory-match'); initMemoryMatch(); } });
             document.getElementById('card-quick-sort').addEventListener('click', () => { if (!gamesPlayed.quickSort) { navigateTo('screen-quick-sort'); initQuickSort(); } });
-
-            // --- Gemini API Call ---
-            async function callGemini(prompt, isJson = false) {
-                if (!isOnline) {
-                    return null; // Don't call API in offline mode
-                }
-                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
-                const payload = { contents: chatHistory };
-                if (isJson) {
-                    payload.generationConfig = {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: "OBJECT",
-                            properties: {
-                                "storyText": { "type": "STRING" },
-                                "choices": {
-                                    "type": "ARRAY",
-                                    "items": { 
-                                        "type": "OBJECT",
-                                        "properties": {
-                                            "text": { "type": "STRING" },
-                                            "trait": { "type": "STRING", "enum": ["adventurous", "cautious", "social", "solitary"] }
-                                        },
-                                        "required": ["text", "trait"]
-                                    }
-                                }
-                            },
-                            required: ["storyText", "choices"]
-                        }
-                    };
-                }
-                const apiKey = ""; 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-                
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (!response.ok) {
-                        throw new Error(`API call failed with status: ${response.status}`);
-                    }
-                    const result = await response.json();
-                    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
-                        return result.candidates[0].content.parts[0].text;
-                    } else {
-                        throw new Error("Invalid response structure from API.");
-                    }
-                } catch (error) {
-                    console.error("Gemini API call error:", error);
-                    return null;
-                }
-            }
 
             // --- Game 1: Gem Trail ---
             function initGemTrail() {
@@ -743,7 +575,7 @@
                         timestamp: new Date().toISOString()
                     });
                     
-                    if (appData.dreamWeaver.choices.length >= 4) { // Changed from 5 to 4 to match fallback story length
+                    if (appData.dreamWeaver.choices.length >= 4) {
                         endGame();
                         return;
                     }
