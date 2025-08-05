@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Chosen Palette: Calm Tech Neutrals -->
+    <!-- Chosen Palette: Minimalist Dark -->
     <!-- Application Structure Plan: A multi-screen single-page application (SPA) navigated via JavaScript. The flow is: Welcome -> Game Hub -> Mini-Game -> Game Hub -> ... -> Results. This structure isolates each game, allowing for focused interaction and data capture per activity. It's designed to feel like a simple, friendly app, hiding the complex data logging happening in the background. The user is always guided to the next logical step. -->
     <!-- Visualization & Content Choices: 
         - Report Info: Capturing behavioral proxies for anxiety/depression. Goal: Collect Data. Viz: Interactive Canvas-based games with levels and enhanced mechanics (collectibles, moving obstacles, visual maps). Interaction: Mouse movement, clicks, timing. Justification: More engaging game mechanics lead to more natural player behavior, providing richer and more nuanced data for the ML model.
@@ -18,7 +18,8 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8; /* A lighter, softer slate */
+            background-color: #000000;
+            color: #EAEAEA;
         }
         .screen {
             display: none;
@@ -28,10 +29,10 @@
             display: block;
         }
         .game-card {
-            transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
-            border: 2px solid transparent;
-            position: relative;
-            overflow: hidden;
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            transition: transform 0.3s, box-shadow 0.3s;
         }
         .game-card.completed .status-badge {
              background-color: #10b981; /* emerald-500 */
@@ -42,18 +43,17 @@
         }
         .game-card:not(.completed):hover {
             transform: translateY(-8px);
-            box-shadow: 0 10px 20px -5px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-            border-color: #0ea5e9; /* sky-500 */
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.2);
         }
         .game-canvas {
-            background-color: white;
+            background-color: #111827; /* gray-900 */
             border-radius: 0.5rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            border: 1px solid #374151; /* gray-700 */
         }
         .disabled {
             opacity: 0.6;
             cursor: not-allowed;
-            background-color: #94a3b8 !important; 
+            background-color: #4b5563 !important; 
         }
         .btn {
             transition: background-color 0.3s, transform 0.2s, box-shadow 0.3s;
@@ -66,7 +66,7 @@
             display: none;
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(255, 255, 255, 0.85);
+            background-color: rgba(0, 0, 0, 0.8);
             backdrop-filter: blur(5px);
             justify-content: center;
             align-items: center;
@@ -77,13 +77,6 @@
         @keyframes fadeIn {
             from { opacity: 0; transform: scale(0.95); }
             to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-        .pulse {
-            animation: pulse 1s infinite;
         }
         .memory-card {
             perspective: 1000px;
@@ -108,67 +101,68 @@
             align-items: center;
             justify-content: center;
             border-radius: 0.5rem;
+            border: 1px solid #374151;
         }
         .memory-card-front {
             background-color: #38bdf8; /* sky-400 */
         }
         .memory-card-back {
-            background-color: #f1f5f9; /* slate-100 */
+            background-color: #1f2937; /* gray-800 */
             transform: rotateY(180deg);
             font-size: 2rem;
         }
     </style>
 </head>
-<body class="text-slate-700">
+<body class="bg-black text-gray-200">
 
     <div id="app" class="max-w-5xl mx-auto p-4 md:p-8">
         
         <!-- Welcome Screen -->
         <div id="screen-welcome" class="screen active text-center py-16">
-            <h1 class="text-4xl md:text-6xl font-bold text-slate-800 tracking-tight">Mindful Play</h1>
-            <p class="mt-4 text-lg text-slate-600">A short suite of games to challenge your focus and decision-making.</p>
-            <button id="start-btn" class="btn mt-10 bg-sky-600 text-white font-bold py-4 px-10 rounded-full shadow-lg hover:bg-sky-700 text-lg">Begin Your Session</button>
+            <h1 class="text-4xl md:text-6xl font-bold text-white tracking-tight">Mindful Play</h1>
+            <p class="mt-4 text-lg text-gray-300">A short suite of games to challenge your focus and decision-making.</p>
+            <button id="start-btn" class="btn mt-10 bg-amber-400 text-black font-bold py-4 px-10 rounded-full shadow-lg hover:bg-amber-300 text-lg">Begin Your Session</button>
         </div>
 
         <!-- Game Hub Screen -->
         <div id="screen-hub" class="screen">
             <div class="flex justify-between items-center mb-8">
-                 <h2 class="text-3xl font-bold text-slate-800">Game Hub</h2>
+                 <h2 class="text-3xl font-bold text-white">Game Hub</h2>
                  <div id="user-display" class="text-right">
-                    <span class="text-xs text-slate-500">User ID</span>
-                    <p id="user-id-display" class="font-mono text-xs text-slate-700"></p>
+                    <span class="text-xs text-gray-400">User ID</span>
+                    <p id="user-id-display" class="font-mono text-xs text-gray-200"></p>
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div id="card-gem-trail" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
-                    <h3 class="text-xl font-semibold text-slate-800">Gem Trail</h3>
-                    <p class="mt-2 text-sm text-slate-500">Navigate the trail and collect gems.</p>
-                    <span id="status-gem-trail" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                <div id="card-gem-trail" class="game-card p-6 rounded-lg text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-white">Gem Trail</h3>
+                    <p class="mt-2 text-sm text-gray-400">Navigate the trail and collect gems.</p>
+                    <span id="status-gem-trail" class="status-badge mt-4 inline-block text-xs font-semibold text-gray-400 px-2 py-1 rounded-full bg-gray-800">Not Played</span>
                 </div>
-                <div id="card-journey-planner" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
-                    <h3 class="text-xl font-semibold text-slate-800">Journey Planner</h3>
-                    <p class="mt-2 text-sm text-slate-500">Choose the wisest path to the goal.</p>
-                    <span id="status-journey-planner" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                <div id="card-journey-planner" class="game-card p-6 rounded-lg text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-white">Journey Planner</h3>
+                    <p class="mt-2 text-sm text-gray-400">Choose the wisest path to the goal.</p>
+                    <span id="status-journey-planner" class="status-badge mt-4 inline-block text-xs font-semibold text-gray-400 px-2 py-1 rounded-full bg-gray-800">Not Played</span>
                 </div>
-                <div id="card-dream-weaver" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
-                    <h3 class="text-xl font-semibold text-slate-800">Dream Weaver</h3>
-                    <p class="mt-2 text-sm text-slate-500">A story where you decide what happens next.</p>
-                    <span id="status-dream-weaver" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                <div id="card-dream-weaver" class="game-card p-6 rounded-lg text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-white">Dream Weaver</h3>
+                    <p class="mt-2 text-sm text-gray-400">A story where you decide what happens next.</p>
+                    <span id="status-dream-weaver" class="status-badge mt-4 inline-block text-xs font-semibold text-gray-400 px-2 py-1 rounded-full bg-gray-800">Not Played</span>
                 </div>
-                <div id="card-rhythm-tap" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
-                    <h3 class="text-xl font-semibold text-slate-800">Rhythm Tap</h3>
-                    <p class="mt-2 text-sm text-slate-500">Tap in time with the pulsing circle.</p>
-                    <span id="status-rhythm-tap" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                <div id="card-rhythm-tap" class="game-card p-6 rounded-lg text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-white">Rhythm Tap</h3>
+                    <p class="mt-2 text-sm text-gray-400">Tap in time with the pulsing circle.</p>
+                    <span id="status-rhythm-tap" class="status-badge mt-4 inline-block text-xs font-semibold text-gray-400 px-2 py-1 rounded-full bg-gray-800">Not Played</span>
                 </div>
-                 <div id="card-memory-match" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
-                    <h3 class="text-xl font-semibold text-slate-800">Memory Match</h3>
-                    <p class="mt-2 text-sm text-slate-500">Find all the matching pairs.</p>
-                    <span id="status-memory-match" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                 <div id="card-memory-match" class="game-card p-6 rounded-lg text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-white">Memory Match</h3>
+                    <p class="mt-2 text-sm text-gray-400">Find all the matching pairs.</p>
+                    <span id="status-memory-match" class="status-badge mt-4 inline-block text-xs font-semibold text-gray-400 px-2 py-1 rounded-full bg-gray-800">Not Played</span>
                 </div>
-                 <div id="card-quick-sort" class="game-card bg-white p-6 rounded-lg shadow-md text-center cursor-pointer">
-                    <h3 class="text-xl font-semibold text-slate-800">Quick Sort</h3>
-                    <p class="mt-2 text-sm text-slate-500">Sort the shapes into the correct bins.</p>
-                    <span id="status-quick-sort" class="status-badge mt-4 inline-block text-xs font-semibold text-slate-400 px-2 py-1 rounded-full bg-slate-100">Not Played</span>
+                 <div id="card-quick-sort" class="game-card p-6 rounded-lg text-center cursor-pointer">
+                    <h3 class="text-xl font-semibold text-white">Quick Sort</h3>
+                    <p class="mt-2 text-sm text-gray-400">Sort the shapes into the correct bins.</p>
+                    <span id="status-quick-sort" class="status-badge mt-4 inline-block text-xs font-semibold text-gray-400 px-2 py-1 rounded-full bg-gray-800">Not Played</span>
                 </div>
             </div>
             <div class="text-center mt-12">
@@ -186,27 +180,26 @@
         
         <!-- Results Screen -->
         <div id="screen-results" class="screen">
-            <h2 id="results-title" class="text-3xl font-bold text-slate-800 text-center">Session Complete!</h2>
-            <div class="bg-white p-6 mt-8 rounded-lg shadow-md text-center">
-                <h3 class="text-xl font-semibold text-slate-800">Thank You!</h3>
-                <p id="results-subtitle" class="mt-2 text-slate-600">Your session data has been processed.</p>
+            <h2 id="results-title" class="text-3xl font-bold text-white text-center">Session Complete!</h2>
+            <div class="bg-gray-900 border border-gray-700 p-6 mt-8 rounded-lg shadow-md text-center">
+                <h3 class="text-xl font-semibold text-white">Thank You!</h3>
+                <p id="results-subtitle" class="mt-2 text-gray-300">Your session data has been processed.</p>
                 <div class="flex justify-center gap-4">
                     <button id="download-csv-btn" class="btn mt-6 bg-blue-500 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-blue-600">Download CSV</button>
                 </div>
             </div>
-            <div class="bg-slate-800 text-white p-6 mt-6 rounded-lg shadow-md">
-                <h3 class="text-lg font-semibold text-slate-200">Developer View: Captured Behavioral Data</h3>
-                <p class="text-xs text-slate-400 mb-4">This is the raw data that was saved.</p>
+            <div class="bg-gray-900 text-white p-6 mt-6 rounded-lg shadow-md border border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-200">Developer View: Captured Behavioral Data</h3>
+                <p class="text-xs text-gray-400 mb-4">This is the raw data that was saved.</p>
                 <pre id="results-data" class="text-xs whitespace-pre-wrap overflow-x-auto"></pre>
             </div>
         </div>
 
     </div>
 
-    <script type="module">
-        let userId = `local-${crypto.randomUUID()}`;
-
+    <script>
         document.addEventListener('DOMContentLoaded', function () {
+            let userId = `local-${crypto.randomUUID()}`;
             const screens = document.querySelectorAll('.screen');
             const appData = {
                 sessionId: new Date().toISOString(),
@@ -241,12 +234,12 @@
                 const screen = document.getElementById(`screen-${gameId}`);
                 screen.innerHTML = `
                     <div class="flex justify-between items-center mb-2">
-                        <h2 class="text-2xl font-bold text-slate-800">${title}</h2>
-                        <span id="${gameId}-level-indicator" class="font-mono text-lg text-slate-500"></span>
+                        <h2 class="text-2xl font-bold text-white">${title}</h2>
+                        <span id="${gameId}-level-indicator" class="font-mono text-lg text-gray-400"></span>
                     </div>
                     ${content}
                     <div class="text-center mt-4">
-                         <button class="btn back-to-hub-btn bg-slate-500 text-white font-bold py-2 px-6 rounded-lg shadow-md hover:bg-slate-600">Back to Hub</button>
+                         <button class="btn back-to-hub-btn bg-gray-700 text-white font-bold py-2 px-6 rounded-lg shadow-md hover:bg-gray-600">Back to Hub</button>
                     </div>`;
             }
 
@@ -256,6 +249,7 @@
             });
             
             document.getElementById('finish-btn').addEventListener('click', () => {
+                if (document.getElementById('finish-btn').classList.contains('disabled')) return;
                 try {
                     let localSessions = JSON.parse(localStorage.getItem('mindful-play-sessions')) || [];
                     localSessions.push(appData);
@@ -287,7 +281,7 @@
             // --- Game 1: Gem Trail ---
             function initGemTrail() {
                 createGameScreen('gem-trail', 'Gem Trail', `
-                    <p id="gt-instructions" class="text-center text-slate-600 mb-2">Move to the start circle (S) to begin.</p>
+                    <p id="gt-instructions" class="text-center text-gray-400 mb-2">Move to the start circle (S) to begin.</p>
                     <div class="flex justify-center items-center gap-8 font-mono text-lg mb-2">
                         <span id="gt-timer">Time: 0.00s</span>
                         <span id="gt-score">Score: 0</span>
@@ -295,9 +289,9 @@
                     <div class="relative">
                         <canvas id="gt-canvas" class="game-canvas mx-auto" width="600" height="400"></canvas>
                         <div id="gt-completion-overlay" class="completion-overlay rounded-lg">
-                            <h3 id="gt-completion-title" class="text-2xl font-bold text-slate-800">Level Complete!</h3>
-                            <p id="gt-completion-stats" class="mt-2 text-slate-600"></p>
-                            <button id="gt-next-level-btn" class="btn mt-6 bg-sky-600 text-white font-bold py-2 px-6 rounded-lg shadow-md">Next Level</button>
+                            <h3 id="gt-completion-title" class="text-2xl font-bold text-white">Level Complete!</h3>
+                            <p id="gt-completion-stats" class="mt-2 text-gray-300"></p>
+                            <button id="gt-next-level-btn" class="btn mt-6 bg-sky-500 text-white font-bold py-2 px-6 rounded-lg shadow-md">Next Level</button>
                         </div>
                     </div>`);
                 
@@ -360,7 +354,7 @@
                     gtCtx.beginPath(); gtCtx.arc(gtStart.x, gtStart.y, 10, 0, Math.PI * 2); gtCtx.fill();
                     gtCtx.fillStyle = '#16a34a';
                     gtCtx.beginPath(); gtCtx.arc(gtEnd.x, gtEnd.y, 10, 0, Math.PI * 2); gtCtx.fill();
-                    gtCtx.fillStyle = 'black'; gtCtx.font = '20px Arial';
+                    gtCtx.fillStyle = 'white'; gtCtx.font = '20px Arial';
                     gtCtx.fillText('S', gtStart.x - 5, gtStart.y - 15);
                     gtCtx.fillText('E', gtEnd.x - 5, gtEnd.y - 15);
                 }
@@ -443,13 +437,13 @@
             // --- Game 2: Journey Planner ---
             function initJourneyPlanner() {
                 createGameScreen('journey-planner', 'Journey Planner', `
-                    <p class="text-center text-slate-600 mb-2">Click a path to make a choice. Your energy is limited!</p>
-                    <div class="text-center font-mono text-xl text-emerald-600 mb-2">Energy: <span id="jp-energy">100</span></div>
+                    <p class="text-center text-gray-400 mb-2">Click a path to make a choice. Your energy is limited!</p>
+                    <div class="text-center font-mono text-xl text-emerald-400 mb-2">Energy: <span id="jp-energy">100</span></div>
                     <div class="relative">
                         <canvas id="jp-canvas" class="game-canvas mx-auto" width="600" height="400"></canvas>
                         <div id="jp-completion-overlay" class="completion-overlay rounded-lg">
-                            <h3 class="text-2xl font-bold text-slate-800">Journey Complete!</h3>
-                            <p id="jp-completion-stats" class="mt-2 text-slate-600"></p>
+                            <h3 class="text-2xl font-bold text-white">Journey Complete!</h3>
+                            <p id="jp-completion-stats" class="mt-2 text-gray-300"></p>
                         </div>
                     </div>`);
                 
@@ -475,10 +469,10 @@
                     jpCtx.clearRect(0, 0, jpCanvas.width, jpCanvas.height);
                     document.getElementById('journey-planner-level-indicator').textContent = `Stage ${jpLevel + 1} / ${jpLevels.length}`;
 
-                    jpCtx.strokeStyle = '#d1d5db'; jpCtx.lineWidth = 5;
+                    jpCtx.strokeStyle = '#4b5563'; jpCtx.lineWidth = 5;
                     jpCtx.beginPath(); jpCtx.moveTo(0, 200); jpCtx.lineTo(600, 200); jpCtx.stroke();
                     for(let i=0; i < jpLevels.length; i++) {
-                        jpCtx.fillStyle = (i < jpLevel) ? '#0ea5e9' : '#9ca3af';
+                        jpCtx.fillStyle = (i < jpLevel) ? '#0ea5e9' : '#6b7280';
                         jpCtx.beginPath(); jpCtx.arc(30 + (i+1)*54, 200, 8, 0, Math.PI*2); jpCtx.fill();
                     }
                     
@@ -501,9 +495,9 @@
                     const levelData = jpLevels[jpLevel];
                     levelData.choices.forEach((choice, index) => {
                         const yPos = 100 + index * 200;
-                        jpCtx.fillStyle = '#f8fafc'; jpCtx.strokeStyle = '#cbd5e1'; jpCtx.lineWidth = 2;
+                        jpCtx.fillStyle = '#1f2937'; jpCtx.strokeStyle = '#4b5563'; jpCtx.lineWidth = 2;
                         jpCtx.beginPath(); jpCtx.roundRect(150, yPos - 40, 300, 80, [8]); jpCtx.fill(); jpCtx.stroke();
-                        jpCtx.fillStyle = '#0f172a'; jpCtx.font = 'bold 16px Inter'; jpCtx.textAlign = 'center';
+                        jpCtx.fillStyle = '#e5e7eb'; jpCtx.font = 'bold 16px Inter'; jpCtx.textAlign = 'center';
                         jpCtx.fillText(choice.text, 300, yPos + 5);
                     });
                 }
@@ -530,14 +524,13 @@
 
             // --- Game 3: Dream Weaver ---
             function initDreamWeaver() {
-                createGameScreen('dream-weaver', '✨ Dream Weaver', `
-                     <div class="bg-white p-6 rounded-lg shadow-md min-h-[350px] flex flex-col justify-between">
-                        <p id="dw-story-text" class="text-lg text-slate-700 mb-6"></p>
+                createGameScreen('dream-weaver', 'Dream Weaver', `
+                     <div class="bg-gray-900 border border-gray-700 p-6 rounded-lg shadow-md min-h-[350px] flex flex-col justify-between">
+                        <p id="dw-story-text" class="text-lg text-gray-300 mb-6"></p>
                         <div id="dw-story-choices" class="grid grid-cols-1 gap-4"></div>
                      </div>`);
                 const storyTextEl = document.getElementById('dw-story-text');
                 const storyChoicesEl = document.getElementById('dw-story-choices');
-                let storyHistory = [];
                 const fallbackStory = [
                     { storyText: "You find a mysterious, glowing object in a forest. It hums with a gentle energy.", choices: [{ text: "Pick it up.", trait: "adventurous" }, { text: "Observe from a distance.", trait: "cautious" }] },
                     { storyText: "As you hold it, the object shows you a vision of a bustling city. You can feel its energy.", choices: [{ text: "Head towards the city.", trait: "social" }, { text: "Seek a quiet place to study the object.", trait: "solitary" }] },
@@ -546,28 +539,6 @@
                     { storyText: "The object fades, leaving you with your choice. The path ahead is yours to walk.", choices: [] }
                 ];
 
-                async function getNextStoryPart(prompt) {
-                    storyTextEl.textContent = "Weaving the next part of your dream...";
-                    storyChoicesEl.innerHTML = '<div class="h-8 w-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto"></div>';
-                    
-                    const responseText = await callGemini(prompt, true);
-                    if (!responseText) {
-                        storyTextEl.textContent = "The dream seems to be following a set path... (AI connection failed, using fallback)";
-                        setTimeout(() => renderStory(fallbackStory[appData.dreamWeaver.choices.length]), 1500);
-                        return;
-                    }
-
-                    try {
-                        const responseJson = JSON.parse(responseText);
-                        storyHistory.push(responseJson.storyText);
-                        renderStory(responseJson);
-                    } catch (e) {
-                        console.error("Failed to parse JSON from Gemini:", e);
-                        storyTextEl.textContent = "The dream became tangled... there was a parsing error. Using fallback.";
-                        setTimeout(() => renderStory(fallbackStory[appData.dreamWeaver.choices.length]), 1500);
-                    }
-                }
-                
                 function makeChoice(choice) {
                     appData.dreamWeaver.choices.push({
                         trait: choice.trait,
@@ -577,11 +548,9 @@
                     
                     if (appData.dreamWeaver.choices.length >= 4) {
                         endGame();
-                        return;
+                    } else {
+                        renderStory(fallbackStory[appData.dreamWeaver.choices.length]);
                     }
-
-                    const prompt = `Continue this fantasy story. The story so far: "${storyHistory.join(' ')}". The user just chose to "${choice.text}". Now, describe the next situation and provide two new choices. One choice should be adventurous or social, the other should be cautious or solitary. Keep the story text to 2-3 sentences. Return a JSON object with "storyText" and "choices" (an array of objects with "text" and "trait" properties).`;
-                    getNextStoryPart(prompt);
                 }
                 
                 function endGame() {
@@ -604,20 +573,19 @@
                     part.choices.forEach(choice => {
                         const button = document.createElement('button');
                         button.textContent = choice.text;
-                        button.className = 'btn bg-white p-4 rounded-lg border border-slate-300 hover:bg-slate-100 hover:border-sky-500 text-left w-full';
+                        button.className = 'btn bg-gray-800 p-4 rounded-lg border border-gray-700 hover:bg-gray-700 hover:border-sky-500 text-left w-full';
                         button.onclick = () => makeChoice(choice);
                         storyChoicesEl.appendChild(button);
                     });
                 }
                 
-                const initialPrompt = `Start a fantasy story where the user finds a mysterious, glowing object in a forest. Describe the scene and provide two choices: one adventurous, one cautious. Return a JSON object with "storyText" and "choices" (an array of objects with "text" and "trait" properties).`;
-                getNextStoryPart(initialPrompt);
+                renderStory(fallbackStory[0]);
             }
             
             // --- Game 4: Rhythm Tap ---
             function initRhythmTap() {
                  createGameScreen('rhythm-tap', 'Rhythm Tap', `
-                    <p id="rt-instructions" class="text-center text-slate-600 mb-4">Click or tap the circle as it pulses!</p>
+                    <p id="rt-instructions" class="text-center text-gray-400 mb-4">Click or tap the circle as it pulses!</p>
                     <div class="relative w-full h-64 flex items-center justify-center">
                         <div id="rt-circle" class="w-32 h-32 bg-sky-500 rounded-full cursor-pointer flex items-center justify-center text-white font-bold text-2xl" style="transition: transform 0.5s ease-in-out;">TAP!</div>
                     </div>
@@ -683,7 +651,7 @@
             // --- Game 5: Memory Match ---
             function initMemoryMatch() {
                 createGameScreen('memory-match', 'Memory Match', `
-                    <p id="mm-instructions" class="text-center text-slate-600 mb-2">Find all the matching pairs.</p>
+                    <p id="mm-instructions" class="text-center text-gray-400 mb-2">Find all the matching pairs.</p>
                     <div class="flex justify-center items-center gap-8 font-mono text-lg mb-2">
                         <span>Moves: <span id="mm-moves">0</span></span>
                         <span>Time: <span id="mm-timer">0</span>s</span>
@@ -796,7 +764,7 @@
             // --- Game 6: Quick Sort ---
             function initQuickSort() {
                 createGameScreen('quick-sort', 'Quick Sort', `
-                    <p id="qs-instructions" class="text-center text-slate-600 mb-2">Sort the shape into the correct bin!</p>
+                    <p id="qs-instructions" class="text-center text-gray-400 mb-2">Sort the shape into the correct bin!</p>
                     <div class="flex justify-center items-center gap-8 font-mono text-lg mb-2">
                         <span>Score: <span id="qs-score">0</span></span>
                         <span>Time Left: <span id="qs-timer">60</span>s</span>
@@ -837,14 +805,14 @@
                         qsCtx.globalAlpha = 1.0;
                         qsCtx.strokeStyle = bin.color;
                         qsCtx.strokeRect(bin.x, bin.y, bin.w, bin.h);
-                        qsCtx.fillStyle = bin.color;
+                        qsCtx.fillStyle = 'white';
                         qsCtx.font = 'bold 20px Inter';
                         qsCtx.textAlign = 'center';
                         qsCtx.fillText(bin.type.toUpperCase(), bin.x + bin.w / 2, bin.y + bin.h / 2 + 8);
                     });
 
                     if (currentShape.type) {
-                        qsCtx.fillStyle = '#1e293b';
+                        qsCtx.fillStyle = '#e5e7eb';
                         if (currentShape.type === 'circle') {
                             qsCtx.beginPath();
                             qsCtx.arc(currentShape.x, currentShape.y, currentShape.size, 0, Math.PI * 2);
@@ -861,9 +829,9 @@
                     qsCanvas.removeEventListener('mousemove', onMouseMove);
                     qsCanvas.removeEventListener('mouseup', onMouseUp);
                     
-                    qsCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    qsCtx.fillStyle = 'rgba(17, 24, 39, 0.8)';
                     qsCtx.fillRect(0, 0, qsCanvas.width, qsCanvas.height);
-                    qsCtx.fillStyle = '#1e293b';
+                    qsCtx.fillStyle = 'white';
                     qsCtx.font = 'bold 30px Inter';
                     qsCtx.textAlign = 'center';
                     qsCtx.fillText(`Game Over! Final Score: ${score}`, qsCanvas.width / 2, qsCanvas.height / 2);
@@ -937,93 +905,59 @@
                 spawnShape();
                 drawQuickSort();
             }
-
-             // --- Personalized Feedback ---
-            document.getElementById('get-feedback-btn').addEventListener('click', async () => {
-                const feedbackBtn = document.getElementById('get-feedback-btn');
-                const feedbackContainer = document.getElementById('feedback-container');
-                
-                feedbackBtn.classList.add('disabled');
-                feedbackContainer.classList.remove('hidden');
-                feedbackContainer.innerHTML = '<div class="h-6 w-6 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>';
-
-                let playstyle = [];
-                if (appData.gemTrail.length > 0) {
-                    const avgHits = appData.gemTrail.reduce((acc, val) => acc + val.hits, 0) / appData.gemTrail.length;
-                    playstyle.push(avgHits > 5 ? "a bold and quick player" : "a precise and steady player");
-                }
-                if (appData.journeyPlanner.decisions.length > 0) {
-                    const totalEnergyCost = appData.journeyPlanner.decisions.reduce((acc, val) => acc + val.cost, 0);
-                    playstyle.push(totalEnergyCost > 60 ? "a direct, high-energy planner" : "a thoughtful and efficient planner");
-                }
-                if (appData.dreamWeaver.choices.length > 0) {
-                    const socialChoices = appData.dreamWeaver.choices.filter(c => c.trait === 'social' || c.trait === 'adventurous').length;
-                    playstyle.push(socialChoices >= appData.dreamWeaver.choices.length / 2 ? "a curious adventurer" : "a reflective thinker");
-                }
-                if(appData.rhythmTap.length > 0) {
-                    const finalScore = appData.rhythmTap[appData.rhythmTap.length - 1].totalScore;
-                    playstyle.push(finalScore > 200 ? "a focused and rhythmic player" : "a player with a unique tempo");
-                }
-                if(appData.memoryMatch.length > 0) {
-                    const avgMoves = appData.memoryMatch.reduce((acc, val) => acc + val.moves, 0) / appData.memoryMatch.length;
-                    playstyle.push(avgMoves < 15 ? "a sharp and focused mind" : "a methodical and deliberate thinker");
-                }
-                if(appData.quickSort.length > 0) {
-                    const avgTime = appData.quickSort.reduce((acc, val) => acc + val.timeTaken, 0) / appData.quickSort.length;
-                    playstyle.push(avgTime < 2 ? "a quick and decisive sorter" : "a methodical and accurate sorter");
-                }
-                
-                const prompt = `My gameplay style is described as: "${playstyle.join(', ')}". Write a short, positive, and encouraging feedback message (2-3 sentences). Do not use clinical or diagnostic language. Suggest a simple, mindful activity they might enjoy today.`;
-                
-                const feedbackText = await callGemini(prompt);
-                if (feedbackText) {
-                    feedbackContainer.textContent = feedbackText;
-                } else {
-                    feedbackContainer.textContent = "Could not generate feedback at this time. This may be due to network issues.";
-                }
-                feedbackBtn.remove();
-            });
             
             // --- CSV Download ---
-            document.getElementById('download-csv-btn').addEventListener('click', () => {
-                const rows = [
-                    ["sessionId", "userId", "game", "timestamp", "metric_type", "metric_value_1", "metric_value_2", "metric_value_3", "metric_value_4"]
-                ];
-                
-                const common = [appData.sessionId, userId];
+            document.getElementById('download-csv-btn').addEventListener('click', async () => {
+                const button = document.getElementById('download-csv-btn');
+                button.textContent = 'Fetching Data...';
+                button.classList.add('disabled');
 
-                appData.gemTrail.forEach(rec => {
-                    rows.push([...common, "gemTrail", new Date().toISOString(), "level_complete", rec.level, rec.score, rec.durationSeconds, rec.hits]);
-                });
-                appData.journeyPlanner.decisions.forEach(rec => {
-                    rows.push([...common, "journeyPlanner", rec.timestamp, "decision", rec.stage, rec.choice, rec.cost, rec.energyBefore]);
-                });
-                appData.dreamWeaver.choices.forEach(rec => {
-                    rows.push([...common, "dreamWeaver", rec.timestamp, "choice", rec.trait, rec.text]);
-                });
-                appData.rhythmTap.forEach(rec => {
-                    rows.push([...common, "rhythmTap", rec.timestamp, "tap_event", rec.level, rec.score, rec.totalScore, rec.interval]);
-                });
-                 appData.memoryMatch.forEach(rec => {
-                    rows.push([...common, "memoryMatch", rec.timestamp, "level_complete", rec.level, rec.moves, rec.timeTaken]);
-                });
-                appData.quickSort.forEach(rec => {
-                    rows.push([...common, "quickSort", rec.timestamp, "sort_event", rec.shape, rec.correct, rec.timeTaken, rec.finalScore]);
-                });
+                const allSessions = [];
+                try {
+                    const usersSnapshot = await getDocs(collection(db, "artifacts", appId, "users"));
+                    for (const userDoc of usersSnapshot.docs) {
+                        const sessionsSnapshot = await getDocs(collection(db, "artifacts", appId, "users", userDoc.id, "gameSessions"));
+                        sessionsSnapshot.forEach(sessionDoc => {
+                            allSessions.push(sessionDoc.data());
+                        });
+                    }
 
-                let csvContent = "data:text/csv;charset=utf-8," 
-                    + rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
+                    const rows = [
+                        ["sessionId", "userId", "game", "timestamp", "metric_type", "metric_value_1", "metric_value_2", "metric_value_3", "metric_value_4"]
+                    ];
 
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", `mindful_play_session_${appData.sessionId}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                    allSessions.forEach(session => {
+                        const common = [session.sessionId, session.userId];
+                        session.gemTrail.forEach(rec => rows.push([...common, "gemTrail", new Date().toISOString(), "level_complete", rec.level, rec.score, rec.durationSeconds, rec.hits]));
+                        session.journeyPlanner.decisions.forEach(rec => rows.push([...common, "journeyPlanner", rec.timestamp, "decision", rec.stage, rec.choice, rec.cost, rec.energyBefore]));
+                        session.dreamWeaver.choices.forEach(rec => rows.push([...common, "dreamWeaver", rec.timestamp, "choice", rec.trait, rec.text]));
+                        session.rhythmTap.forEach(rec => rows.push([...common, "rhythmTap", rec.timestamp, "tap_event", rec.level, rec.score, rec.totalScore, rec.interval]));
+                        session.memoryMatch.forEach(rec => rows.push([...common, "memoryMatch", rec.timestamp, "level_complete", rec.level, rec.moves, rec.timeTaken]));
+                        session.quickSort.forEach(rec => rows.push([...common, "quickSort", rec.timestamp, "sort_event", rec.shape, rec.correct, rec.timeTaken, rec.finalScore]));
+                    });
+
+                    let csvContent = "data:text/csv;charset=utf-8," 
+                        + rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
+
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", `all_user_data.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                } catch (error) {
+                    console.error("Error fetching all user data:", error);
+                    alert("Could not fetch all user data. Please check console for errors.");
+                } finally {
+                    button.textContent = 'Download All User Data (Admin)';
+                    button.classList.remove('disabled');
+                }
             });
 
         });
     </script>
 </body>
 </html>
+
